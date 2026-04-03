@@ -17,6 +17,7 @@ export default function Navbar({ locale }: NavbarProps) {
   const pathname = usePathname();
   const altLocale = locale === 'en' ? 'ar' : 'en';
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const isHome = pathname === '/' || pathname === `/${locale}` || pathname === `/${locale}/`;
 
   // Swap locale in path
   const altPath = pathname.replace(`/${locale}`, `/${altLocale}`);
@@ -31,11 +32,15 @@ export default function Navbar({ locale }: NavbarProps) {
 
   return (
     <>
-      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm no-print">
+      <nav className={`top-0 z-50 no-print transition-all duration-300 w-full ${
+        isHome
+          ? 'fixed bg-transparent'
+          : 'sticky bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm'
+      }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href={`/${locale}`} className="flex items-center gap-2 font-bold text-xl text-teal-700">
+            <Link href={`/${locale}`} className={`flex items-center gap-2 font-bold text-xl ${isHome ? 'text-white' : 'text-teal-700'}`}>
               <span className="text-2xl">🇴🇲</span>
               <span className="hidden sm:inline">{locale === 'ar' ? 'دُروب' : 'Duroob'}</span>
             </Link>
@@ -49,9 +54,9 @@ export default function Navbar({ locale }: NavbarProps) {
                     key={link.href}
                     href={link.href}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-teal-50 text-teal-700'
-                        : 'text-gray-600 hover:text-teal-700 hover:bg-teal-50'
+                      isHome
+                        ? isActive ? 'text-[#d4a574]' : 'text-white/70 hover:text-white'
+                        : isActive ? 'bg-teal-50 text-teal-700' : 'text-gray-600 hover:text-teal-700 hover:bg-teal-50'
                     }`}
                   >
                     {link.icon}
@@ -63,7 +68,9 @@ export default function Navbar({ locale }: NavbarProps) {
               {/* Language switcher */}
               <Link
                 href={altPath}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-teal-700 hover:bg-teal-50 transition-colors border border-gray-200 ms-2"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ms-2 ${
+                  isHome ? 'text-white/70 hover:text-white border-white/20' : 'text-gray-600 hover:text-teal-700 hover:bg-teal-50 border-gray-200'
+                }`}
                 title={altLocale === 'ar' ? 'عربي' : 'English'}
                 aria-label={altLocale === 'ar' ? 'Switch to Arabic' : 'Switch to English'}
               >
@@ -78,7 +85,7 @@ export default function Navbar({ locale }: NavbarProps) {
             {/* Mobile hamburger */}
             <button
               onClick={() => setDrawerOpen(true)}
-              className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+              className={`lg:hidden p-2 rounded-lg transition-colors ${isHome ? 'text-white/70 hover:text-white' : 'text-gray-600 hover:bg-gray-100'}`}
               aria-label="Open menu"
             >
               <Menu size={24} />

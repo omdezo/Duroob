@@ -26,6 +26,7 @@ interface PlannerFormProps {
 
 export default function PlannerForm({ locale }: PlannerFormProps) {
   const t = useTranslations('planner');
+  const tCat = useTranslations('categories');
   const isRtl = locale === 'ar';
 
   const { inputs, setInputs, setPlan, setGenerating, setError, isGenerating } = usePlannerStore();
@@ -188,7 +189,7 @@ export default function PlannerForm({ locale }: PlannerFormProps) {
                 }`}
               >
                 <span>{CATEGORY_EMOJIS[cat]}</span>
-                <span className="capitalize">{cat}</span>
+                <span>{tCat(cat as 'mountain')}</span>
               </button>
             );
           })}

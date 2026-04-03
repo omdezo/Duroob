@@ -36,7 +36,7 @@ export default function TripEvaluation({ scores }: TripEvaluationProps) {
           <div key={key}>
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-gray-600">{t(key)}</span>
-              <span className="text-sm font-semibold text-gray-800">{score}</span>
+              <span className="text-sm font-semibold text-gray-800">{Math.round(score)}/100</span>
             </div>
             <div className="h-2 w-full rounded-full bg-gray-100">
               <div

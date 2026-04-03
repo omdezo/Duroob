@@ -109,7 +109,7 @@ export default function ComparisonView({ baseInputs, locale, onPickPlan, onBack 
                   {/* Safety */}
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">{tEval('safety')}</span>
-                    <span className="font-semibold">{result.scores.safety}/100</span>
+                    <span className="font-semibold">{Math.round(result.scores.safety)}/100</span>
                   </div>
                   <div className="w-full h-1.5 bg-gray-100 rounded-full">
                     <div
@@ -121,7 +121,7 @@ export default function ComparisonView({ baseInputs, locale, onPickPlan, onBack 
                   {/* Enjoyment */}
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">{tEval('enjoyment')}</span>
-                    <span className="font-semibold">{result.scores.enjoyment}/100</span>
+                    <span className="font-semibold">{Math.round(result.scores.enjoyment)}/100</span>
                   </div>
                   <div className="w-full h-1.5 bg-gray-100 rounded-full">
                     <div

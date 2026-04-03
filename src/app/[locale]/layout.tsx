@@ -6,6 +6,7 @@ import '../globals.css';
 import Navbar from '@/components/shared/Navbar';
 import { ToastProvider } from '@/components/shared/Toaster';
 import CommandPalette from '@/components/shared/CommandPalette';
+import GlobalFooter from '@/components/shared/GlobalFooter';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -42,11 +43,7 @@ export default async function LocaleLayout({
           <Navbar locale={locale} />
           <CommandPalette locale={locale} />
           <main id="main">{children}</main>
-          <footer className="bg-gray-900 text-gray-400 text-center py-8 text-sm mt-16 no-print">
-            <p className="font-medium text-gray-300">{t('name')}</p>
-            <p className="mt-1">{t('copyright')}</p>
-            <p className="mt-1 text-xs text-gray-500">{t('dataSource')}</p>
-          </footer>
+          <GlobalFooter locale={locale} />
           </ToastProvider>
           </SessionProvider>
         </NextIntlClientProvider>

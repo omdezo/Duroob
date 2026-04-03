@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ScheduledStop } from '@/types/itinerary';
+import type { Category } from '@/types/destination';
 import { Clock, Ticket, ChevronDown, ChevronUp, Navigation } from 'lucide-react';
 
 interface StopCardProps {
@@ -23,6 +24,7 @@ export default function StopCard({ stop, locale, index, isActive, onClick }: Sto
   const t = useTranslations('planner.results');
   const tCommon = useTranslations('common');
   const tCard = useTranslations('card');
+  const tCat = useTranslations('categories');
   const isRtl = locale === 'ar';
   const d = stop.destination;
   const name = d.name[locale as 'en' | 'ar'] ?? d.name.en;
@@ -69,7 +71,7 @@ export default function StopCard({ stop, locale, index, isActive, onClick }: Sto
             <div className="flex gap-1.5 mt-1.5 flex-wrap">
               {d.categories.map((cat) => (
                 <span key={cat} className="text-xs text-gray-500">
-                  {CATEGORY_EMOJIS[cat]} {cat}
+                  {CATEGORY_EMOJIS[cat]} {tCat(cat as Category)}
                 </span>
               ))}
             </div>
