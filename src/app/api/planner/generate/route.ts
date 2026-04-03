@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod/v4';
 import { generateItinerary } from '@/lib/planner/itineraryEngine';
 import { scorePlan } from '@/lib/planner/tripScorer';
-import { trackTrip } from '@/lib/adminStore';
+import { getDb } from '@/db';
 
 const PlannerInputsSchema = z.object({
   durationDays: z.number().int().min(1).max(7),
@@ -53,16 +53,25 @@ export async function POST(request: NextRequest) {
     const plan = generateItinerary(inputs as Parameters<typeof generateItinerary>[0]);
     const scores = scorePlan(plan);
 
-    // Track for analytics
-    trackTrip({
-      duration: plan.days.length,
-      tier: plan.inputs.budgetTier,
-      regions: [...new Set(plan.days.map((d: any) => d.region))],
-      totalCost: plan.costBreakdown.grandTotal,
-      safetyScore: scores.safety,
-      enjoymentScore: scores.enjoyment,
-      overall: scores.overall,
-    });
+    // Track for analytics in DB
+    try {
+      const sql = getDb();
+      const duration = plan.days.length;
+      const tier = plan.inputs.budgetTier;
+      const regions = [...new Set(plan.days.map((d: any) => d.region))];
+      const totalCost = plan.costBreakdown.grandTotal;
+      const safetyScore = scores.safety;
+      const enjoymentScore = scores.enjoyment;
+      const overall = scores.overall;
+
+      await sql`
+        INSERT INTO trip_analytics (duration, tier, regions, total_cost, safety_score, enjoyment_score, overall)
+        VALUES (${duration}, ${tier}, ${regions}, ${totalCost}, ${safetyScore}, ${enjoymentScore}, ${String(overall)})
+      `;
+    } catch (dbError) {
+      // Don't fail the request if analytics tracking fails
+      console.error('[API] Failed to track trip analytics:', dbError);
+    }
 
     return NextResponse.json({ plan, scores });
   } catch (error) {

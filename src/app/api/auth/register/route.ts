@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { getUsers } from '@/lib/auth';
+import { getDb } from '@/db';
 
 export async function POST(req: Request) {
   try {
@@ -13,26 +13,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
-    const users = getUsers();
+    const sql = getDb();
     const emailLower = email.toLowerCase();
 
-    if (users.has(emailLower)) {
+    // Check for duplicate email
+    const existing = await sql`SELECT count(*)::int AS count FROM users WHERE email = ${emailLower}`;
+    if (existing[0].count > 0) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const id = String(users.size + 1);
 
-    users.set(emailLower, {
-      id,
-      email: emailLower,
-      name,
-      password: hashedPassword,
-      role: 'user',
-    });
+    await sql`
+      INSERT INTO users (email, name, password, role)
+      VALUES (${emailLower}, ${name}, ${hashedPassword}, ${'user'})
+    `;
 
     return NextResponse.json({ success: true, message: 'Account created' }, { status: 201 });
   } catch (error) {
+    console.error('[API] POST /api/auth/register error:', error);
     return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
   }
 }

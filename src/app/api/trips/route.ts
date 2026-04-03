@@ -1,21 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { addAuditEntry } from '@/lib/adminStore';
-
-// In-memory saved trips (replaced by DB when DATABASE_URL is set)
-interface SavedTrip {
-  id: string;
-  title: string;
-  inputsJson: any;
-  planJson: any;
-  scoresJson: any;
-  createdAt: string;
-}
-
-const savedTrips: SavedTrip[] = [];
+import { getDb } from '@/db';
 
 export async function GET() {
-  return NextResponse.json({ data: savedTrips });
+  try {
+    const sql = getDb();
+    const data = await sql`SELECT * FROM saved_trips ORDER BY created_at DESC`;
+    return NextResponse.json({ data });
+  } catch (error) {
+    console.error('[API] GET /api/trips error:', error);
+    return NextResponse.json({ data: [] });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -26,26 +21,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'title and planJson required' }, { status: 400 });
     }
 
-    const trip: SavedTrip = {
-      id: `trip-${Date.now()}`,
-      title: body.title,
-      inputsJson: body.inputsJson || {},
-      planJson: body.planJson,
-      scoresJson: body.scoresJson || {},
-      createdAt: new Date().toISOString(),
-    };
+    const sql = getDb();
 
-    savedTrips.unshift(trip);
+    const title = body.title;
+    const inputsJson = body.inputsJson || {};
+    const planJson = body.planJson;
+    const scoresJson = body.scoresJson || {};
+    const userId = body.userId || null;
 
-    addAuditEntry({
-      admin: 'user',
-      action: 'trip_saved',
-      targetType: 'trip',
-      targetId: trip.id,
-      details: `Saved trip: ${trip.title}`,
-    });
+    const rows = await sql`
+      INSERT INTO saved_trips (id, user_id, title, inputs_json, plan_json, scores_json)
+      VALUES (${`trip-${Date.now()}`}, ${userId}, ${title}, ${JSON.stringify(inputsJson)}, ${JSON.stringify(planJson)}, ${JSON.stringify(scoresJson)})
+      RETURNING *
+    `;
 
-    return NextResponse.json({ success: true, trip }, { status: 201 });
+    await sql`
+      INSERT INTO audit_log (admin_email, action, target_type, target_id, details)
+      VALUES (${'user'}, ${'trip_saved'}, ${'trip'}, ${rows[0].id}, ${`Saved trip: ${title}`})
+    `;
+
+    return NextResponse.json({ success: true, trip: rows[0] }, { status: 201 });
   } catch (error) {
     console.error('[API] POST /api/trips error:', error);
     return NextResponse.json({ error: 'Failed to save trip' }, { status: 500 });

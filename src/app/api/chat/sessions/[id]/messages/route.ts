@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { runAgent, type AgentMessage } from '@/lib/mcp/agent';
 import { chatLimiter, checkRateLimit } from '@/lib/rateLimit';
-import { trackChatMessage, trackTrip } from '@/lib/adminStore';
+import { getDb } from '@/db';
 
 export async function POST(
   req: NextRequest,
@@ -31,21 +31,47 @@ export async function POST(
       locale,
     );
 
-    // Track in admin store
-    trackChatMessage(sessionId, 'user', content, false);
-    trackChatMessage(sessionId, 'assistant', response.text.slice(0, 200), !!response.plan);
+    // Track chat messages in DB
+    const sql = getDb();
+    const userMsg = content.slice(0, 200);
+    const assistantMsg = response.text.slice(0, 200);
+    const hasPlan = !!response.plan;
+
+    // Upsert for user message
+    await sql`
+      INSERT INTO chat_sessions (id, message_count, has_plan, last_message, created_at, updated_at)
+      VALUES (${sessionId}, 1, false, ${userMsg}, NOW(), NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        message_count = chat_sessions.message_count + 1,
+        last_message = ${userMsg},
+        updated_at = NOW()
+    `;
+
+    // Upsert for assistant message
+    await sql`
+      INSERT INTO chat_sessions (id, message_count, has_plan, last_message, created_at, updated_at)
+      VALUES (${sessionId}, 1, ${hasPlan}, ${assistantMsg}, NOW(), NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        message_count = chat_sessions.message_count + 1,
+        has_plan = chat_sessions.has_plan OR ${hasPlan},
+        last_message = ${assistantMsg},
+        updated_at = NOW()
+    `;
 
     // Track trip if plan was generated
     if (response.plan && response.scores) {
-      trackTrip({
-        duration: response.plan.days.length,
-        tier: response.plan.inputs.budgetTier,
-        regions: [...new Set(response.plan.days.map(d => d.region))],
-        totalCost: response.plan.costBreakdown.grandTotal,
-        safetyScore: response.scores.safety,
-        enjoymentScore: response.scores.enjoyment,
-        overall: response.scores.overall,
-      });
+      const duration = response.plan.days.length;
+      const tier = response.plan.inputs.budgetTier;
+      const regions = [...new Set(response.plan.days.map((d: any) => d.region))];
+      const totalCost = response.plan.costBreakdown.grandTotal;
+      const safetyScore = response.scores.safety;
+      const enjoymentScore = response.scores.enjoyment;
+      const overall = response.scores.overall;
+
+      await sql`
+        INSERT INTO trip_analytics (duration, tier, regions, total_cost, safety_score, enjoyment_score, overall)
+        VALUES (${duration}, ${tier}, ${regions}, ${totalCost}, ${safetyScore}, ${enjoymentScore}, ${String(overall)})
+      `;
     }
 
     // Stream response via SSE

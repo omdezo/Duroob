@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getUsers } from '@/lib/auth';
+import { getDb } from '@/db';
 
 export async function GET() {
   try {
-    const usersMap = getUsers();
-    const users = [...usersMap.values()].map(({ password, ...user }) => user);
+    const sql = getDb();
+    const users = await sql`SELECT id, email, name, role, created_at FROM users ORDER BY created_at DESC`;
     return NextResponse.json({ users });
-  } catch {
+  } catch (error) {
+    console.error('[API] GET /api/admin/users error:', error);
     return NextResponse.json({ users: [] });
   }
 }

@@ -115,16 +115,6 @@ export default function SignInPage({ params }: SignInPageProps) {
             </button>
           </form>
 
-          {/* Demo credentials hint */}
-          <div className="mt-5 p-3 bg-teal-50 rounded-xl border border-teal-100">
-            <p className="text-xs text-teal-700 text-center">
-              {isRTL ? 'تجربة: ' : 'Demo: '}
-              <span className="font-mono font-medium" dir="ltr">admin@duroob.om</span>
-              {' / '}
-              <span className="font-mono font-medium" dir="ltr">admin123</span>
-            </p>
-          </div>
-
           {/* Register link */}
           <p className="text-center text-sm text-gray-500 mt-6">
             {isRTL ? 'ليس لديك حساب؟' : "Don't have an account?"}{' '}
