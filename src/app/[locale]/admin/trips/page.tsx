@@ -4,6 +4,20 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Map, Clock, DollarSign, Award, Loader2, BarChart3, Star, Shield, Smile } from 'lucide-react';
 
+interface TripRecordRaw {
+  id?: string;
+  duration: number;
+  tier: string;
+  regions: string[];
+  totalCost?: number;
+  cost?: number;
+  safetyScore?: number;
+  safety?: number;
+  enjoymentScore?: number;
+  enjoyment?: number;
+  overall?: string | number;
+}
+
 interface TripRecord {
   id?: string;
   duration: number;
@@ -12,7 +26,7 @@ interface TripRecord {
   cost: number;
   safety: number;
   enjoyment: number;
-  overall: number;
+  overall: string;
 }
 
 interface TripsData {
@@ -62,8 +76,19 @@ export default function TripsPage() {
         const res = await fetch('/api/admin/trips');
         if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
         const json = await res.json();
+        // Normalize field names (API returns totalCost/safetyScore/enjoymentScore)
+        const records: TripRecord[] = (json.records || []).map((r: TripRecordRaw) => ({
+          id: r.id,
+          duration: r.duration,
+          tier: r.tier,
+          regions: r.regions || [],
+          cost: r.totalCost ?? r.cost ?? 0,
+          safety: r.safetyScore ?? r.safety ?? 0,
+          enjoyment: r.enjoymentScore ?? r.enjoyment ?? 0,
+          overall: String(r.overall ?? 'good'),
+        }));
         setData({
-          records: json.records || [],
+          records,
           total: json.total ?? 0,
           avgDuration: json.avgDuration ?? 0,
           avgCost: json.avgCost ?? 0,
@@ -315,8 +340,8 @@ export default function TripsPage() {
                         <td className={`px-6 py-3 text-sm font-semibold ${scoreColor(record.enjoyment)} ${textAlign}`}>
                           {record.enjoyment.toFixed(1)}
                         </td>
-                        <td className={`px-6 py-3 text-sm font-semibold ${scoreColor(record.overall)} ${textAlign}`}>
-                          {record.overall.toFixed(1)}
+                        <td className={`px-6 py-3 text-sm font-semibold ${record.overall === 'excellent' ? 'text-green-600' : record.overall === 'good' ? 'text-amber-600' : 'text-red-500'} ${textAlign}`}>
+                          {record.overall}
                         </td>
                       </tr>
                     ))}
@@ -354,8 +379,8 @@ export default function TripsPage() {
                       <span className={`font-semibold ${scoreColor(record.enjoyment)}`}>
                         {isRtl ? 'متعة' : 'Enjoy'} {record.enjoyment.toFixed(1)}
                       </span>
-                      <span className={`font-semibold ${scoreColor(record.overall)}`}>
-                        {isRtl ? 'إجمالي' : 'Overall'} {record.overall.toFixed(1)}
+                      <span className={`font-semibold ${record.overall === 'excellent' ? 'text-green-600' : record.overall === 'good' ? 'text-amber-600' : 'text-red-500'}`}>
+                        {isRtl ? 'إجمالي' : 'Overall'} {record.overall}
                       </span>
                     </div>
                   </div>

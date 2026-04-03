@@ -53,7 +53,13 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
   const hasPlan=msgs.some(m=>m.plan);
   const empty=msgs.length===0;
 
-  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'})},[msgs,busy]);
+  // Auto-scroll only if user is near bottom (within 300px)
+  useEffect(()=>{
+    const container = endRef.current?.parentElement;
+    if (!container) return;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300;
+    if (isNearBottom) endRef.current?.scrollIntoView({behavior:'smooth'});
+  },[msgs,busy]);
   const dc=useCallback(async(id:string,t:string)=>{await navigator.clipboard.writeText(t).catch(()=>{});setCopied(id);setTimeout(()=>setCopied(null),1500)},[]);
 
   const send=useCallback(async(text?:string)=>{
