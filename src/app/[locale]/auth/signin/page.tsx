@@ -34,7 +34,14 @@ export default function SignInPage({ params }: SignInPageProps) {
       if (result?.error) {
         setError(isRTL ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة' : 'Invalid email or password');
       } else {
-        router.push(`/${locale}`);
+        // Check if user is admin and redirect accordingly
+        const sessionRes = await fetch('/api/auth/session');
+        const session = await sessionRes.json();
+        if (session?.user?.role === 'admin') {
+          router.push(`/${locale}/admin`);
+        } else {
+          router.push(`/${locale}`);
+        }
         router.refresh();
       }
     } catch {
