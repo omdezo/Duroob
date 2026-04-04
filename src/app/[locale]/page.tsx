@@ -209,24 +209,76 @@ export default function HomePage({ params }: { params: Promise<{ locale: string 
       {/* =========================================
                       2. INTRODUCTION / PHILOSOPHY
           ========================================= */}
-      <section className="py-32 md:py-56 px-6 lg:px-24 bg-[#0b0b0b] relative z-10">
-        <div className="max-w-5xl mx-auto flex flex-col items-center text-center">
-          <Compass className="text-[#d4a880] w-8 h-8 mb-8" />
-          <TextReveal>
-            <h2 className="text-[clamp(2rem,4vw,4.5rem)] font-light leading-[1.3] text-white/90">
-              {ar ? (
-                <>السياحة في عُمان ليست مجرد زيارة، <br/>إنها <span className="italic text-[#d4a880]">رحلة عبر الروح</span> والجبال الشامخة والبحار العميقة.</>
-              ) : (
-                <>Tourism in Oman isn't just a visit, <br/>it's a <span className="italic text-[#d4a880]">journey through the soul</span>, towering mountains and vast seas.</>
-              )}
-            </h2>
-          </TextReveal>
-          <TextReveal delay={0.2}>
-            <p className="mt-12 text-white/40 text-lg md:text-xl max-w-2xl font-light" style={{ fontFamily: 'system-ui, sans-serif' }}>
-              {ar 
-                ? 'استكشف مزيجاً مثالياً بين أصالة التراث العُماني وأحدث تقنيات التخطيط السياحي الذكي.' 
-                : 'Explore the perfect blend of authentic Omani heritage and state-of-the-art smart tourism planning.'}
-            </p>
+      <section className="py-32 md:py-48 px-6 lg:px-24 bg-[#0b0b0b] relative z-10">
+        <div className="max-w-6xl mx-auto">
+          {/* Main value prop */}
+          <div className="text-center mb-20">
+            <TextReveal>
+              <p className="text-[#d4a880] text-xs uppercase tracking-[0.3em] mb-6" style={{ fontFamily: 'system-ui, sans-serif' }}>
+                {ar ? 'ما هو دُروب؟' : 'What is Duroob?'}
+              </p>
+            </TextReveal>
+            <TextReveal delay={0.1}>
+              <h2 className="text-[clamp(1.8rem,3.5vw,3.5rem)] font-light leading-[1.3] text-white/90 max-w-4xl mx-auto">
+                {ar ? (
+                  <>منصة سياحية ذكية تبني لك <span className="italic text-[#d4a880]">خطة رحلة مثالية</span> في عُمان — مدعومة بالخوارزميات والذكاء الاصطناعي.</>
+                ) : (
+                  <>A smart platform that builds your <span className="italic text-[#d4a880]">perfect trip plan</span> in Oman — powered by algorithms and AI.</>
+                )}
+              </h2>
+            </TextReveal>
+          </div>
+
+          {/* Feature grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+            {[
+              {
+                num: '01',
+                titleEn: 'AI Trip Planner',
+                titleAr: 'مخطط رحلات ذكي',
+                descEn: 'Tell us your days, budget, and interests. Our algorithm analyzes 30+ destinations across 6 regions to build your ideal itinerary — minute by minute.',
+                descAr: 'أخبرنا بعدد الأيام والميزانية واهتماماتك. خوارزميتنا تحلل أكثر من 30 وجهة عبر 6 مناطق لبناء خطة مثالية — دقيقة بدقيقة.',
+              },
+              {
+                num: '02',
+                titleEn: 'Smart Chat Assistant',
+                titleAr: 'مساعد محادثة ذكي',
+                descEn: 'Just type "3 days in Muscat" and our AI understands. It speaks Arabic and English, remembers context, and builds plans conversationally.',
+                descAr: 'فقط اكتب "3 أيام في مسقط" والذكاء الاصطناعي يفهم. يتحدث العربية والإنجليزية، يتذكر السياق، ويبني خططاً تفاعلية.',
+              },
+              {
+                num: '03',
+                titleEn: 'Safety & Cost Scores',
+                titleAr: 'تقييم السلامة والتكلفة',
+                descEn: 'Every plan gets safety, enjoyment, and cost efficiency scores. Compare 3 budget tiers side by side to find the best value.',
+                descAr: 'كل خطة تحصل على تقييم للسلامة والمتعة وكفاءة التكلفة. قارن 3 مستويات ميزانية جنباً إلى جنب لإيجاد أفضل قيمة.',
+              },
+            ].map((f, i) => (
+              <TextReveal key={f.num} delay={i * 0.15}>
+                <div>
+                  <span className="text-[#d4a880] text-sm font-mono mb-4 block" style={{ fontFamily: 'system-ui, sans-serif' }}>{f.num}</span>
+                  <h3 className="text-xl text-white/90 font-normal mb-3">{ar ? f.titleAr : f.titleEn}</h3>
+                  <p className="text-white/40 text-sm leading-relaxed" style={{ fontFamily: 'system-ui, sans-serif' }}>{ar ? f.descAr : f.descEn}</p>
+                </div>
+              </TextReveal>
+            ))}
+          </div>
+
+          {/* Stats bar */}
+          <TextReveal delay={0.4}>
+            <div className="mt-20 flex items-center justify-center gap-12 md:gap-20 text-center" style={{ fontFamily: 'system-ui, sans-serif' }}>
+              {[
+                { n: '30+', lEn: 'Destinations', lAr: 'وجهة' },
+                { n: '6', lEn: 'Regions', lAr: 'مناطق' },
+                { n: '2', lEn: 'Languages', lAr: 'لغتين' },
+                { n: '∞', lEn: 'Plans', lAr: 'خطط' },
+              ].map(s => (
+                <div key={s.lEn}>
+                  <p className="text-2xl md:text-3xl font-bold text-[#d4a880]">{s.n}</p>
+                  <p className="text-xs text-white/30 mt-1 uppercase tracking-wider">{ar ? s.lAr : s.lEn}</p>
+                </div>
+              ))}
+            </div>
           </TextReveal>
         </div>
       </section>

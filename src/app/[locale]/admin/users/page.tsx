@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Users, Shield, Mail, Trash2, Loader2 } from 'lucide-react';
+import { Users, Shield, Mail, Trash2, Loader2, Search } from 'lucide-react';
 
 interface UserEntry {
   id: string;
@@ -22,6 +22,12 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const filtered = users.filter(u =>
+    u.name.toLowerCase().includes(search.toLowerCase()) ||
+    u.email.toLowerCase().includes(search.toLowerCase())
+  );
 
   const fetchUsers = useCallback(() => {
     setLoading(true);
@@ -86,6 +92,17 @@ export default function UsersPage() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search size={16} className={`absolute top-1/2 -translate-y-1/2 ${isRtl ? 'right-3' : 'left-3'} text-gray-400`} />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={isRtl ? 'ابحث بالاسم أو البريد...' : 'Search by name or email...'}
+          className={`w-full ${isRtl ? 'pr-10 pl-4' : 'pl-10 pr-4'} py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-400`}
+        />
+      </div>
+
       {loading ? (
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 animate-pulse">
           <div className="space-y-4">
@@ -100,15 +117,15 @@ export default function UsersPage() {
             ))}
           </div>
         </div>
-      ) : users.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 flex flex-col items-center justify-center text-center">
           <Users size={28} className="text-gray-400 mb-4" />
-          <p className="text-gray-500">{isRtl ? 'لا يوجد مستخدمين مسجلين بعد' : 'No registered users yet'}</p>
+          <p className="text-gray-500">{search ? (isRtl ? 'لا توجد نتائج' : 'No results found') : (isRtl ? 'لا يوجد مستخدمين مسجلين بعد' : 'No registered users yet')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="divide-y divide-gray-50">
-            {users.map((user) => {
+            {filtered.map((user) => {
               const isSelf = user.email === currentEmail;
               const isUpdating = updatingId === user.id;
 

@@ -37,8 +37,6 @@ export default function MobileDrawer({ locale, isOpen, onClose }: MobileDrawerPr
     { href: `/${locale}/destinations`, label: t('destinations'), icon: <MapPin size={20} /> },
     { href: `/${locale}/planner`, label: t('planner'), icon: <CalendarDays size={20} /> },
     { href: `/${locale}/chat`, label: t('chat'), icon: <MessageCircle size={20} /> },
-    { href: `/${locale}/saved`, label: t('saved'), icon: <Heart size={20} /> },
-    { href: `/${locale}/trips`, label: isRtl ? 'رحلاتي' : 'My Trips', icon: <Map size={20} /> },
   ];
 
   return (
@@ -115,6 +113,24 @@ export default function MobileDrawer({ locale, isOpen, onClose }: MobileDrawerPr
                 <div className="px-3">
                   <p className="text-sm font-medium text-gray-900 truncate">{session.user.name}</p>
                   <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
+                </div>
+                <div className="space-y-1">
+                  <Link
+                    href={`/${locale}/trips`}
+                    onClick={onClose}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:text-teal-700 hover:bg-teal-50 transition-colors"
+                  >
+                    <Map size={18} />
+                    {isRtl ? 'رحلاتي' : 'My Trips'}
+                  </Link>
+                  <Link
+                    href={`/${locale}/saved`}
+                    onClick={onClose}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:text-teal-700 hover:bg-teal-50 transition-colors"
+                  >
+                    <Heart size={18} />
+                    {isRtl ? 'المحفوظة' : 'Saved'}
+                  </Link>
                 </div>
                 <button
                   onClick={() => {

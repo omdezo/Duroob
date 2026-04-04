@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import {
   Send, Sparkles, MapPin, CalendarDays, Wallet, Loader2,
   Shield, Smile, Copy, Check, ExternalLink, ChevronDown,
-  Sun, Mountain, UtensilsCrossed, Bookmark,
+  Sun, Mountain, UtensilsCrossed, Bookmark, Plus,
 } from 'lucide-react';
 import { generateItinerary } from '@/lib/planner/itineraryEngine';
 import { scorePlan, type TripScores } from '@/lib/planner/tripScorer';
@@ -44,7 +44,7 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
   const sp=usePlannerStore(s=>s.setPlan);
   const name=session?.user?.name;
 
-  const [sessionId] = useState(() => 'chat-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+  const [sessionId, setSessionId] = useState('');
   const [msgs,setMsgs]=useState<Msg[]>([]);
   const [input,setInput]=useState('');
   const [busy,setBusy]=useState(false);
@@ -53,6 +53,33 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
   const inputRef=useRef<HTMLInputElement>(null);
   const hasPlan=msgs.some(m=>m.plan);
   const empty=msgs.length===0;
+
+  // Initialize sessionId on client only (localStorage not available during SSR)
+  useEffect(() => {
+    const stored = localStorage.getItem('duroob-chat-session');
+    const id = stored || 'chat-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    setSessionId(id);
+    localStorage.setItem('duroob-chat-session', id);
+  }, []);
+
+  // Load previous messages from DB when sessionId is set
+  useEffect(() => {
+    if (!sessionId) return;
+    fetch(`/api/chat/sessions/${sessionId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.messages && data.messages.length > 0) {
+          const loaded = data.messages.map((m: any) => ({
+            id: `db-${m.id}`,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            plan: m.plan_json ? m.plan_json : undefined,
+          }));
+          setMsgs(loaded);
+        }
+      })
+      .catch(() => {});
+  }, [sessionId]);
 
   // Auto-scroll only if user is near bottom (within 300px)
   useEffect(()=>{
@@ -242,7 +269,16 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
         {/* Chips + Input */}
         <div className="shrink-0 max-w-3xl mx-auto w-full px-5 sm:px-8 pb-4 pt-1">
           {!busy&&(
-            <div className="flex gap-2 overflow-x-auto no-scrollbar mb-2">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mb-2">
+              <button onClick={() => {
+                const newId = 'chat-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+                setSessionId(newId);
+                localStorage.setItem('duroob-chat-session', newId);
+                setMsgs([]);
+              }} className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg text-xs text-teal-600 hover:text-teal-700 transition whitespace-nowrap shrink-0" title={ar ? 'محادثة جديدة' : 'New Chat'}>
+                <Plus size={12} />
+                {ar ? 'جديدة' : 'New'}
+              </button>
               {chips.map(c=><button key={c} onClick={()=>send(c)} className="px-3 py-1.5 bg-gray-50 hover:bg-teal-50 border border-gray-100 hover:border-teal-200 rounded-lg text-xs text-gray-500 hover:text-teal-600 transition whitespace-nowrap shrink-0">{c}</button>)}
             </div>
           )}

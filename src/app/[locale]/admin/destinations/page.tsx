@@ -25,7 +25,22 @@ export default function DestinationsPage() {
   const [saving, setSaving] = useState(false);
 
   // Form state for add/edit
-  const [form, setForm] = useState({ id:'', nameEn:'', nameAr:'', region:'muscat', lat:'23.5', lng:'58.4', ticketCost:'0', crowdLevel:'3', visitMin:'60' });
+  const [form, setForm] = useState({
+    id:'', nameEn:'', nameAr:'', region:'muscat',
+    lat:'23.5', lng:'58.4', ticketCost:'0', crowdLevel:'3', visitMin:'60',
+    categories: ['culture'] as string[],
+    months: [1,2,3,10,11,12] as number[],
+  });
+
+  const toggleFormCat = (c: string) => setForm(f => ({
+    ...f,
+    categories: f.categories.includes(c) ? f.categories.filter(x => x !== c) : [...f.categories, c]
+  }));
+
+  const toggleMonth = (m: number) => setForm(f => ({
+    ...f,
+    months: f.months.includes(m) ? f.months.filter(x => x !== m) : [...f.months, m]
+  }));
 
   useEffect(() => {
     fetch('/api/admin/destinations')
@@ -57,13 +72,23 @@ export default function DestinationsPage() {
   }
 
   function openEdit(d: Destination) {
-    setForm({ id: d.id, nameEn: d.name.en, nameAr: d.name.ar, region: d.region.en, lat: String(d.lat), lng: String(d.lng), ticketCost: String(d.ticket_cost_omr), crowdLevel: String(d.crowd_level), visitMin: String(d.avg_visit_duration_minutes) });
+    setForm({
+      id: d.id, nameEn: d.name.en, nameAr: d.name.ar, region: d.region.en,
+      lat: String(d.lat), lng: String(d.lng), ticketCost: String(d.ticket_cost_omr),
+      crowdLevel: String(d.crowd_level), visitMin: String(d.avg_visit_duration_minutes),
+      categories: d.categories || ['culture'],
+      months: d.recommended_months || [1,2,3,10,11,12],
+    });
     setEditDest(d);
     setShowAdd(false);
   }
 
   function openAdd() {
-    setForm({ id: '', nameEn: '', nameAr: '', region: 'muscat', lat: '23.5', lng: '58.4', ticketCost: '0', crowdLevel: '3', visitMin: '60' });
+    setForm({
+      id: '', nameEn: '', nameAr: '', region: 'muscat',
+      lat: '23.5', lng: '58.4', ticketCost: '0', crowdLevel: '3', visitMin: '60',
+      categories: ['culture'], months: [1,2,3,10,11,12],
+    });
     setEditDest(null);
     setShowAdd(true);
   }
@@ -82,6 +107,8 @@ export default function DestinationsPage() {
             ticket_cost_omr: parseFloat(form.ticketCost),
             crowd_level: parseInt(form.crowdLevel),
             avg_visit_duration_minutes: parseInt(form.visitMin),
+            categories: form.categories,
+            recommended_months: form.months,
           }),
         });
         if (res.ok) {
@@ -102,9 +129,9 @@ export default function DestinationsPage() {
             ticket_cost_omr: parseFloat(form.ticketCost),
             crowd_level: parseInt(form.crowdLevel),
             avg_visit_duration_minutes: parseInt(form.visitMin),
-            categories: ['culture'],
+            categories: form.categories,
             company: { en: 'Tourism', ar: 'السياحة' },
-            recommended_months: [1,2,3,10,11,12],
+            recommended_months: form.months,
           }),
         });
         if (res.ok) {
@@ -233,6 +260,28 @@ export default function DestinationsPage() {
                 <select value={form.region} onChange={e => setForm({...form, region: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-teal-400">
                   {Object.entries(REGION_AR).map(([en, ar]) => <option key={en} value={en}>{isRtl ? ar : en}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{isRtl ? 'التصنيفات' : 'Categories'}</label>
+                <div className="flex flex-wrap gap-2">
+                  {['mountain','beach','culture','desert','nature','food'].map(cat => (
+                    <button key={cat} type="button" onClick={() => toggleFormCat(cat)}
+                      className={`px-3 py-1.5 rounded-lg text-sm ${form.categories.includes(cat) ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{isRtl ? 'الأشهر الموصى بها' : 'Recommended Months'}</label>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {Array.from({length:12},(_,i)=>i+1).map(m => (
+                    <button key={m} type="button" onClick={() => toggleMonth(m)}
+                      className={`py-2 rounded-lg text-xs ${form.months.includes(m) ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
