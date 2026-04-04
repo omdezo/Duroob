@@ -23,9 +23,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const userId = (session?.user as any)?.id || null;
+    const userEmail = session?.user?.email || 'guest';
 
     const body = await request.json();
 
@@ -39,17 +38,16 @@ export async function POST(request: NextRequest) {
     const inputsJson = body.inputsJson || {};
     const planJson = body.planJson;
     const scoresJson = body.scoresJson || {};
-    const userId = (session.user as any).id;
 
     const rows = await sql`
-      INSERT INTO saved_trips (id, user_id, title, inputs_json, plan_json, scores_json)
-      VALUES (${`trip-${Date.now()}`}, ${userId}, ${title}, ${JSON.stringify(inputsJson)}, ${JSON.stringify(planJson)}, ${JSON.stringify(scoresJson)})
+      INSERT INTO saved_trips (user_id, title, inputs_json, plan_json, scores_json)
+      VALUES (${userId}, ${title}, ${JSON.stringify(inputsJson)}, ${JSON.stringify(planJson)}, ${JSON.stringify(scoresJson)})
       RETURNING *
     `;
 
     await sql`
       INSERT INTO audit_log (admin_email, action, target_type, target_id, details)
-      VALUES (${session.user.email || 'user'}, ${'trip_saved'}, ${'trip'}, ${rows[0].id}, ${`Saved trip: ${title}`})
+      VALUES (${userEmail}, ${'trip_saved'}, ${'trip'}, ${rows[0].id}, ${`Saved trip: ${title}`})
     `;
 
     return NextResponse.json({ success: true, trip: rows[0] }, { status: 201 });

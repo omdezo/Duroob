@@ -87,10 +87,6 @@ export default function PlannerPage({ params }: { params: Promise<{ locale: stri
 
   const saveTrip = async () => {
     if (!plan || tripSaved) return;
-    if (!session?.user) {
-      setSaveError(ar ? 'سجل الدخول أولاً لحفظ رحلتك' : 'Sign in first to save your trip');
-      return;
-    }
     try {
       const res = await fetch('/api/trips', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -100,7 +96,7 @@ export default function PlannerPage({ params }: { params: Promise<{ locale: stri
       setTripSaved(true);
       setSaveError('');
     } catch {
-      setSaveError(ar ? 'فشل حفظ الرحلة' : 'Failed to save trip');
+      setSaveError(ar ? 'فشل حفظ الرحلة. حاول مرة أخرى.' : 'Failed to save trip. Please try again.');
     }
   };
 
