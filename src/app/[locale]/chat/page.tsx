@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import {
   Send, Sparkles, MapPin, CalendarDays, Wallet, Loader2,
   Shield, Smile, Copy, Check, ExternalLink, ChevronDown,
-  Sun, Mountain, UtensilsCrossed,
+  Sun, Mountain, UtensilsCrossed, Bookmark,
 } from 'lucide-react';
 import { generateItinerary } from '@/lib/planner/itineraryEngine';
 import { scorePlan, type TripScores } from '@/lib/planner/tripScorer';
@@ -205,9 +205,20 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
                             {ar?(sc.overall==='excellent'?'ممتازة':sc.overall==='good'?'جيدة':'مقبولة'):sc.overall}
                           </span>
                         </div>
-                        <Link href={`/${locale}/planner`} className="flex items-center justify-center gap-2 py-3 text-sm font-semibold text-teal-600 hover:bg-teal-50 transition border-t border-gray-100">
-                          <ExternalLink size={14}/>{ar?'عرض الخطة الكاملة':'View Full Itinerary'}
-                        </Link>
+                        <div className="flex border-t border-gray-100">
+                          <Link href={`/${locale}/planner`} className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold text-teal-600 hover:bg-teal-50 transition">
+                            <ExternalLink size={14}/>{ar?'عرض الخطة':'View Plan'}
+                          </Link>
+                          <button onClick={async(e)=>{
+                            const btn=e.currentTarget;
+                            try{
+                              const res=await fetch('/api/trips',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:`${p.days.length}-day trip`,inputsJson:p.inputs,planJson:p,scoresJson:sc})});
+                              if(res.ok){btn.textContent=ar?'✓ تم':'✓ Saved';btn.disabled=true;}
+                            }catch{}
+                          }} className="flex items-center justify-center gap-1.5 px-4 py-3 text-sm text-gray-500 hover:text-teal-600 hover:bg-teal-50 transition border-s border-gray-100">
+                            <Bookmark size={13}/>{ar?'حفظ':'Save'}
+                          </button>
+                        </div>
                       </div>
                     )})()}
 

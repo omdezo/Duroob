@@ -14,9 +14,10 @@ import ShareActions from '@/components/planner/ShareActions';
 import Link from 'next/link';
 import type { PlannerInputs, BudgetTier } from '@/types/planner';
 import type { Category, Region } from '@/types/destination';
+import { useSession } from 'next-auth/react';
 import {
   Sparkles, ArrowRight, ArrowLeft, Loader2, Trash2,
-  MessageCircle, BarChart3, Shield, Smile, MapPin, Bookmark, Check,
+  MessageCircle, BarChart3, Shield, Smile, MapPin, Bookmark, Check, LogIn,
 } from 'lucide-react';
 
 const REGIONS: { id: Region; en: string; ar: string }[] = [
@@ -39,6 +40,7 @@ export default function PlannerPage({ params }: { params: Promise<{ locale: stri
   const tCat = useTranslations('categories');
   const tM = useTranslations('planner.months');
 
+  const { data: session } = useSession();
   const { plan, scores, inputs, setPlan, clearPlan } = usePlannerStore();
   const [hydrated, setHydrated] = useState(false);
   const [view, setView] = useState<'wizard' | 'loading' | 'results'>('wizard');
@@ -81,15 +83,25 @@ export default function PlannerPage({ params }: { params: Promise<{ locale: stri
 
   const restart = () => { clearPlan(); setView('wizard'); setStep(1); setShowCompare(false); setTripSaved(false); };
 
+  const [saveError, setSaveError] = useState('');
+
   const saveTrip = async () => {
     if (!plan || tripSaved) return;
+    if (!session?.user) {
+      setSaveError(ar ? 'سجل الدخول أولاً لحفظ رحلتك' : 'Sign in first to save your trip');
+      return;
+    }
     try {
-      await fetch('/api/trips', {
+      const res = await fetch('/api/trips', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: `${plan.days.length}-day trip`, inputsJson: plan.inputs, planJson: plan, scoresJson: scores }),
       });
+      if (!res.ok) throw new Error();
       setTripSaved(true);
-    } catch {}
+      setSaveError('');
+    } catch {
+      setSaveError(ar ? 'فشل حفظ الرحلة' : 'Failed to save trip');
+    }
   };
 
   if (!hydrated) return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="animate-spin text-teal-500" /></div>;
@@ -119,12 +131,29 @@ export default function PlannerPage({ params }: { params: Promise<{ locale: stri
           <MessageCircle size={14} /> {ar ? 'المحادثة' : 'Chat'}
         </Link>
         <button onClick={saveTrip} disabled={tripSaved}
-          className={`px-3 py-2 text-sm rounded-lg transition flex items-center gap-1.5 ${tripSaved ? 'text-green-600 bg-green-50' : 'text-gray-600 hover:bg-gray-100'}`}>
-          {tripSaved ? <Check size={14} /> : <Bookmark size={14} />} {tripSaved ? (ar ? 'تم الحفظ' : 'Saved') : (ar ? 'حفظ الرحلة' : 'Save Trip')}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition flex items-center gap-1.5 ${
+            tripSaved ? 'text-green-700 bg-green-50 border border-green-200'
+            : 'text-white bg-teal-600 hover:bg-teal-700 shadow-sm'
+          }`}>
+          {tripSaved ? <Check size={14} /> : <Bookmark size={14} />}
+          {tripSaved ? (ar ? 'تم الحفظ' : 'Saved!') : (ar ? 'حفظ الرحلة' : 'Save Trip')}
         </button>
         <div className="flex-1" />
         <ShareActions plan={plan} locale={locale} />
       </div>
+      {/* Save error / sign-in prompt */}
+      {saveError && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-sm">
+          <LogIn size={16} className="text-amber-600 shrink-0" />
+          <span className="text-amber-700 flex-1">{saveError}</span>
+          {!session && (
+            <Link href={`/${locale}/auth/signin`} className="text-amber-700 font-medium underline shrink-0">
+              {ar ? 'تسجيل الدخول' : 'Sign in'}
+            </Link>
+          )}
+        </div>
+      )}
+
       {showCompare && inputs ? (
         <ComparisonView baseInputs={inputs} locale={locale} onPickPlan={(p, s) => { setPlan(p, s, 'manual'); setShowCompare(false); }} onBack={() => setShowCompare(false)} />
       ) : (
