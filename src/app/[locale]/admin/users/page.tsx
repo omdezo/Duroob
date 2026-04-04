@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { Users, Shield, User as UserIcon, Mail, Calendar } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { Users, Shield, Mail, Trash2, Loader2 } from 'lucide-react';
 
 interface UserEntry {
   id: string;
@@ -15,10 +16,15 @@ export default function UsersPage() {
   const params = useParams();
   const locale = (params.locale as string) || 'en';
   const isRtl = locale === 'ar';
+  const { data: session } = useSession();
+  const currentEmail = session?.user?.email;
+
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchUsers = useCallback(() => {
+    setLoading(true);
     fetch('/api/admin/users')
       .then((r) => r.json())
       .then((data) => {
@@ -27,6 +33,45 @@ export default function UsersPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  async function handleRoleChange(userId: string, newRole: string) {
+    setUpdatingId(userId);
+    try {
+      await fetch(`/api/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      });
+      fetchUsers();
+    } catch {
+      // silently fail
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function handleDelete(userId: string, userName: string) {
+    const confirmed = window.confirm(
+      isRtl
+        ? `هل أنت متأكد من حذف المستخدم "${userName}"؟ لا يمكن التراجع عن هذا الإجراء.`
+        : `Are you sure you want to delete "${userName}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setUpdatingId(userId);
+    try {
+      await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+      fetchUsers();
+    } catch {
+      // silently fail
+    } finally {
+      setUpdatingId(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -63,48 +108,71 @@ export default function UsersPage() {
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="divide-y divide-gray-50">
-            {users.map((user) => (
-              <div key={user.id} className={`px-5 py-4 flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                {/* Avatar */}
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
-                  user.role === 'admin'
-                    ? 'bg-teal-100 text-teal-700'
-                    : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
+            {users.map((user) => {
+              const isSelf = user.email === currentEmail;
+              const isUpdating = updatingId === user.id;
 
-                {/* Info */}
-                <div className={`flex-1 min-w-0 ${isRtl ? 'text-right' : ''}`}>
-                  <p className="font-medium text-gray-900 text-sm">{user.name}</p>
-                  <p className="text-xs text-gray-400 flex items-center gap-1">
-                    <Mail size={10} />
-                    {user.email}
-                  </p>
-                </div>
+              return (
+                <div key={user.id} className={`px-5 py-4 flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                  {/* Avatar */}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                    user.role === 'admin'
+                      ? 'bg-teal-100 text-teal-700'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
 
-                {/* Role badge */}
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                  user.role === 'admin'
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'bg-gray-100 text-gray-600'
-                }`}>
-                  <Shield size={10} className="inline me-1" />
-                  {user.role === 'admin' ? (isRtl ? 'مشرف' : 'Admin') : (isRtl ? 'مستخدم' : 'User')}
-                </span>
-              </div>
-            ))}
+                  {/* Info */}
+                  <div className={`flex-1 min-w-0 ${isRtl ? 'text-right' : ''}`}>
+                    <p className="font-medium text-gray-900 text-sm">
+                      {user.name}
+                      {isSelf && (
+                        <span className="text-xs text-gray-400 ml-2">
+                          {isRtl ? '(أنت)' : '(you)'}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                      <Mail size={10} />
+                      {user.email}
+                    </p>
+                  </div>
+
+                  {/* Role select */}
+                  <select
+                    value={user.role}
+                    onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                    disabled={isUpdating || isSelf}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      user.role === 'admin'
+                        ? 'bg-teal-50 text-teal-700 border-teal-200'
+                        : 'bg-gray-50 text-gray-600 border-gray-200'
+                    } ${isSelf ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-gray-300'}`}
+                  >
+                    <option value="user">{isRtl ? 'مستخدم' : 'User'}</option>
+                    <option value="admin">{isRtl ? 'مشرف' : 'Admin'}</option>
+                  </select>
+
+                  {/* Delete button */}
+                  <button
+                    onClick={() => handleDelete(user.id, user.name)}
+                    disabled={isUpdating || isSelf}
+                    title={isSelf ? (isRtl ? 'لا يمكنك حذف نفسك' : 'Cannot delete yourself') : (isRtl ? 'حذف المستخدم' : 'Delete user')}
+                    className={`p-2 rounded-lg transition-colors ${
+                      isSelf
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                    }`}
+                  >
+                    {isUpdating ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
-
-      <div className={`bg-blue-50 rounded-xl p-4 ${isRtl ? 'text-right' : ''}`}>
-        <p className="text-sm text-blue-700">
-          {isRtl
-            ? '💡 للتجربة: سجل دخول كمشرف بـ admin@duroob.om / admin123 أو أنشئ حسابات جديدة من صفحة التسجيل.'
-            : '💡 To test: Sign in as admin with admin@duroob.om / admin123 or create new accounts from the register page.'}
-        </p>
-      </div>
     </div>
   );
 }

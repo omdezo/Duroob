@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { DESTINATIONS } from '@/data/destinations';
+import { getActiveDestinations } from '@/db';
 import {
   filterDestinations,
   parseFiltersFromSearchParams,
@@ -26,8 +26,10 @@ export async function GET(request: NextRequest) {
       0,
     );
 
+    const destinations = await getActiveDestinations();
+
     // Apply structured filters (category, region, season, sort)
-    let results = filterDestinations(DESTINATIONS, filters);
+    let results = filterDestinations(destinations, filters);
 
     // Apply free-text search on top of structured filters
     if (q) {

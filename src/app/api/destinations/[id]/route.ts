@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { DESTINATIONS } from '@/data/destinations';
+import { getActiveDestinations } from '@/db';
 
 export async function GET(
   _request: NextRequest,
@@ -8,7 +8,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const destination = DESTINATIONS.find((d) => d.id === id);
+    const destinations = await getActiveDestinations();
+    const destination = destinations.find((d) => d.id === id);
 
     if (!destination) {
       return NextResponse.json(

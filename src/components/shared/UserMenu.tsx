@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { LogOut, Settings, Heart, LayoutDashboard, User } from 'lucide-react';
+import { LogOut, Settings, Heart, LayoutDashboard, User, Map } from 'lucide-react';
 
 interface UserMenuProps {
   locale: string;
@@ -103,13 +103,23 @@ export default function UserMenu({ locale }: UserMenuProps) {
               <span>{isRTL ? 'الوجهات المحفوظة' : 'Saved Destinations'}</span>
             </Link>
 
-            <button
-              disabled
-              className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed w-full"
+            <Link
+              href={`/${locale}/trips`}
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-teal-50 hover:text-teal-700 transition-colors"
+            >
+              <Map size={16} />
+              <span>{isRTL ? 'رحلاتي' : 'My Trips'}</span>
+            </Link>
+
+            <Link
+              href={`/${locale}/profile`}
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-teal-50 hover:text-teal-700 transition-colors"
             >
               <Settings size={16} />
-              <span>{isRTL ? 'الإعدادات' : 'Settings'}</span>
-            </button>
+              <span>{isRTL ? 'الملف الشخصي' : 'Profile'}</span>
+            </Link>
           </div>
 
           {/* Divider + Sign out */}

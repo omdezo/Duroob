@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getDb } from '@/db';
+import { requireAdmin } from '@/lib/requireAdmin';
 
 function toDestination(row: any) {
   return {
@@ -20,6 +21,9 @@ function toDestination(row: any) {
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const check = await requireAdmin();
+    if ('error' in check && check.error instanceof NextResponse) return check.error;
+
     const { id } = await params;
     const body = await req.json();
     const sql = getDb();
@@ -74,6 +78,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const check = await requireAdmin();
+    if ('error' in check && check.error instanceof NextResponse) return check.error;
+
     const { id } = await params;
     const sql = getDb();
 

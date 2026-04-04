@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
+import { requireAdmin } from '@/lib/requireAdmin';
 
 export async function GET(req: Request) {
   try {
+    const check = await requireAdmin();
+    if ('error' in check && check.error instanceof NextResponse) return check.error;
+
     const url = new URL(req.url);
     const limit = parseInt(url.searchParams.get('limit') || '50');
     const offset = parseInt(url.searchParams.get('offset') || '0');

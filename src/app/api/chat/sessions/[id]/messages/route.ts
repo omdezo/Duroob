@@ -58,6 +58,12 @@ export async function POST(
         updated_at = NOW()
     `;
 
+    // Persist full chat messages for history
+    try {
+      await sql`INSERT INTO chat_messages (session_id, role, content) VALUES (${sessionId}, 'user', ${content})`;
+      await sql`INSERT INTO chat_messages (session_id, role, content, plan_json) VALUES (${sessionId}, 'assistant', ${response.text}, ${response.plan ? JSON.stringify(response.plan) : null})`;
+    } catch {}
+
     // Track trip if plan was generated
     if (response.plan && response.scores) {
       const duration = response.plan.days.length;

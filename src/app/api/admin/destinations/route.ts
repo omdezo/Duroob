@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getDb } from '@/db';
+import { requireAdmin } from '@/lib/requireAdmin';
 
 // Transform DB row to frontend Destination shape
 function toDestination(row: any) {
@@ -21,6 +22,9 @@ function toDestination(row: any) {
 
 export async function GET() {
   try {
+    const check = await requireAdmin();
+    if ('error' in check && check.error instanceof NextResponse) return check.error;
+
     const sql = getDb();
     const rows = await sql`SELECT * FROM destinations WHERE is_active = true ORDER BY id`;
     const destinations = rows.map(toDestination);
@@ -33,6 +37,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const check = await requireAdmin();
+    if ('error' in check && check.error instanceof NextResponse) return check.error;
+
     const body = await req.json();
 
     // Accept both nested (name.en) and flat (nameEn) formats

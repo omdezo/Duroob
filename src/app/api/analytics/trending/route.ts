@@ -1,17 +1,12 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { getTrendingDestinations } from '@/lib/recommendations';
+import { getDb } from '@/db';
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   try {
-    const trending = getTrendingDestinations();
-
-    return NextResponse.json({ data: trending });
-  } catch (error) {
-    console.error('[API] GET /api/analytics/trending error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch trending data' },
-      { status: 500 },
-    );
+    const sql = getDb();
+    const rows = await sql`SELECT * FROM trip_analytics ORDER BY created_at DESC LIMIT 10`;
+    return NextResponse.json({ data: rows });
+  } catch {
+    return NextResponse.json({ data: [] });
   }
 }

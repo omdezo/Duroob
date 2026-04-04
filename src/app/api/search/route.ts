@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { DESTINATIONS } from '@/data/destinations';
+import { getActiveDestinations } from '@/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +10,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: [] });
     }
 
-    const results = DESTINATIONS.filter(
+    const destinations = await getActiveDestinations();
+
+    const results = destinations.filter(
       (d) =>
         d.name.en.toLowerCase().includes(q) ||
         d.name.ar.includes(q) ||

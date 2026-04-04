@@ -44,6 +44,7 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
   const sp=usePlannerStore(s=>s.setPlan);
   const name=session?.user?.name;
 
+  const [sessionId] = useState(() => 'chat-' + Date.now() + '-' + Math.random().toString(36).slice(2));
   const [msgs,setMsgs]=useState<Msg[]>([]);
   const [input,setInput]=useState('');
   const [busy,setBusy]=useState(false);
@@ -70,7 +71,7 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
     const up=(patch:Partial<Msg>)=>setMsgs(p=>{const i=p.findIndex(m=>m.id===aid);const b:Msg={id:aid,role:'assistant',content:''};if(i===-1)return[...p,{...b,...patch}];const n=[...p];n[i]={...n[i],...patch};return n});
     try{
       const h=msgs.slice(-8).map(m=>({role:m.role,content:m.content}));
-      const res=await fetch('/api/chat/sessions/local/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:msg,locale,history:h})});
+      const res=await fetch(`/api/chat/sessions/${sessionId}/messages`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:msg,locale,history:h})});
       if(!res.ok||!res.body)throw new Error();
       const reader=res.body.getReader();const dec=new TextDecoder();let buf='';
       while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop()??'';for(const ln of lines){if(!ln.startsWith('data: '))continue;try{const d=JSON.parse(ln.slice(6));if(d.content)up({content:d.content});if(d.durationDays!==undefined)up({parsed:d});if(d.result?.plan){up({plan:d.result.plan,scores:d.result.scores});sp(d.result.plan,d.result.scores,'chat')}}catch{}}}
@@ -82,7 +83,7 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
         up({content:ar?`رحلتك جاهزة! ${stops} محطة في ${regions.join(' و ')}`:`Your trip is ready! ${stops} stops across ${regions.join(' & ')}`,plan,scores,parsed:parsed as any});
       }else{up({content:ar?'مرحباً! جرب: "رحلة 3 أيام مسقط"':'Hi! Try: "3 days in Muscat"'});}
     }finally{setBusy(false);inputRef.current?.focus();}
-  },[input,busy,msgs,locale,ar,sp]);
+  },[input,busy,msgs,locale,ar,sp,sessionId]);
 
   const sug=ar?[
     {icon:<MapPin size={16}/>,t:'خطط رحلة',d:'3 أيام في مسقط',c:'bg-teal-500'},

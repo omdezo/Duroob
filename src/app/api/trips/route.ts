@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getDb } from '@/db';
+import { auth } from '@/lib/auth';
 
 export async function GET() {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ data: [] });
+    }
+
     const sql = getDb();
-    const data = await sql`SELECT * FROM saved_trips ORDER BY created_at DESC`;
+    const userId = (session.user as any).id;
+    const data = await sql`SELECT * FROM saved_trips WHERE user_id = ${userId} ORDER BY created_at DESC`;
     return NextResponse.json({ data });
   } catch (error) {
     console.error('[API] GET /api/trips error:', error);
@@ -15,6 +22,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
 
     if (!body.title || !body.planJson) {
@@ -27,7 +39,7 @@ export async function POST(request: NextRequest) {
     const inputsJson = body.inputsJson || {};
     const planJson = body.planJson;
     const scoresJson = body.scoresJson || {};
-    const userId = body.userId || null;
+    const userId = (session.user as any).id;
 
     const rows = await sql`
       INSERT INTO saved_trips (id, user_id, title, inputs_json, plan_json, scores_json)
@@ -37,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     await sql`
       INSERT INTO audit_log (admin_email, action, target_type, target_id, details)
-      VALUES (${'user'}, ${'trip_saved'}, ${'trip'}, ${rows[0].id}, ${`Saved trip: ${title}`})
+      VALUES (${session.user.email || 'user'}, ${'trip_saved'}, ${'trip'}, ${rows[0].id}, ${`Saved trip: ${title}`})
     `;
 
     return NextResponse.json({ success: true, trip: rows[0] }, { status: 201 });
