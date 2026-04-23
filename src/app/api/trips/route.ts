@@ -12,7 +12,14 @@ export async function GET() {
 
     const sql = getDb();
     const userId = (session.user as any).id;
-    const data = await sql`SELECT * FROM saved_trips WHERE user_id = ${userId} ORDER BY created_at DESC`;
+    const data = await sql`
+      SELECT id, user_id, title, inputs_json, plan_json, scores_json,
+             COALESCE(is_public, FALSE) AS is_public,
+             COALESCE(share_count, 0) AS share_count,
+             created_at
+      FROM saved_trips WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+    `;
     return NextResponse.json({ data });
   } catch (error) {
     console.error('[API] GET /api/trips error:', error);

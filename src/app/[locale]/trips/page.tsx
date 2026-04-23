@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import {
   Map, CalendarDays, Wallet, Shield, Smile,
-  Loader2, Luggage, ExternalLink,
+  Loader2, Luggage, ExternalLink, Globe, Lock,
 } from 'lucide-react';
 
 interface SavedTrip {
@@ -15,6 +15,8 @@ interface SavedTrip {
   inputs_json: any;
   plan_json: any;
   scores_json: any;
+  is_public?: boolean;
+  share_count?: number;
   created_at: string;
 }
 
@@ -47,6 +49,22 @@ export default function TripsPage({ params }: { params: Promise<{ locale: string
       fetchTrips();
     }
   }, [session, status, ar]);
+
+  async function toggleShare(tripId: string, current: boolean) {
+    // Optimistic update
+    setTrips((prev) => prev.map((t) => (t.id === tripId ? { ...t, is_public: !current } : t)));
+    try {
+      const res = await fetch(`/api/trips/${tripId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublic: !current }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Revert on failure
+      setTrips((prev) => prev.map((t) => (t.id === tripId ? { ...t, is_public: current } : t)));
+    }
+  }
 
   // Format date
   function formatDate(dateStr: string) {
@@ -196,14 +214,30 @@ export default function TripsPage({ params }: { params: Promise<{ locale: string
                     </div>
                   </div>
 
-                  {/* Footer link */}
-                  <Link
-                    href={`/${locale}/planner`}
-                    className="flex items-center justify-center gap-2 py-3 text-sm font-semibold text-teal-600 hover:bg-teal-50 transition border-t border-gray-100"
-                  >
-                    <ExternalLink size={14} />
-                    {ar ? 'عرض التفاصيل' : 'View Details'}
-                  </Link>
+                  {/* Footer: share toggle + view */}
+                  <div className="flex border-t border-gray-100">
+                    <button
+                      onClick={() => toggleShare(trip.id, !!trip.is_public)}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition ${
+                        trip.is_public
+                          ? 'text-teal-600 hover:bg-teal-50'
+                          : 'text-gray-500 hover:bg-gray-50'
+                      }`}
+                      title={ar ? 'مشاركة عامة' : 'Share publicly'}
+                    >
+                      {trip.is_public ? <Globe size={14} /> : <Lock size={14} />}
+                      {trip.is_public
+                        ? (ar ? 'عامة' : 'Public')
+                        : (ar ? 'خاصة' : 'Private')}
+                    </button>
+                    <Link
+                      href={trip.is_public ? `/${locale}/community/${trip.id}` : `/${locale}/planner`}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold text-teal-600 hover:bg-teal-50 transition border-s border-gray-100"
+                    >
+                      <ExternalLink size={14} />
+                      {ar ? 'عرض' : 'View'}
+                    </Link>
+                  </div>
                 </div>
               );
             })}

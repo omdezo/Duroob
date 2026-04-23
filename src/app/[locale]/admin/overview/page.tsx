@@ -2,36 +2,10 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { MapPin, CalendarCheck, Users, ShieldCheck, TrendingUp } from 'lucide-react';
-import { DESTINATIONS } from '@/data/destinations';
-
-// Real data computed from actual destinations
-const destCount = DESTINATIONS.length;
-const regionCounts: Record<string, number> = {};
-DESTINATIONS.forEach(d => { regionCounts[d.region.en] = (regionCounts[d.region.en] || 0) + 1; });
-const avgCrowd = (DESTINATIONS.reduce((s, d) => s + d.crowd_level, 0) / destCount).toFixed(1);
-const freeCount = DESTINATIONS.filter(d => d.ticket_cost_omr === 0).length;
+import { MapPin, CalendarCheck, Users, ShieldCheck, TrendingUp, Loader2 } from 'lucide-react';
+import type { Destination } from '@/types/destination';
 
 const REGION_AR: Record<string,string> = { muscat:'مسقط', dakhiliya:'الداخلية', sharqiya:'الشرقية', dhofar:'ظفار', batinah:'الباطنة', dhahira:'الظاهرة' };
-const POPULAR_REGIONS = Object.entries(regionCounts)
-  .sort(([,a],[,b]) => b - a)
-  .map(([region, count]) => ({
-    nameEn: region.charAt(0).toUpperCase() + region.slice(1),
-    nameAr: REGION_AR[region] || region,
-    pct: Math.round((count / destCount) * 100),
-    count,
-  }));
-
-// Top destinations by most categories (most diverse = most interesting)
-const TOP_DESTINATIONS = [...DESTINATIONS]
-  .sort((a, b) => b.categories.length - a.categories.length || a.crowd_level - b.crowd_level)
-  .slice(0, 5)
-  .map((d, i) => ({
-    nameEn: d.name.en,
-    nameAr: d.name.ar,
-    views: d.categories.length,
-    label: `${d.categories.length} categories`,
-  }));
 
 export default function OverviewPage() {
   const params = useParams();
@@ -39,20 +13,78 @@ export default function OverviewPage() {
   const isRtl = locale === 'ar';
 
   const [animatedBars, setAnimatedBars] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [userCount, setUserCount] = useState(0);
+  const [tripCount, setTripCount] = useState(0);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setAnimatedBars(true));
-    fetch('/api/admin/users').then(r => r.json()).then(d => setUserCount(d.users?.length ?? 0)).catch(() => {});
+
+    Promise.all([
+      fetch('/api/admin/destinations').then(r => r.json()).catch(() => ({ destinations: [] })),
+      fetch('/api/admin/users').then(r => r.json()).catch(() => ({ users: [] })),
+      fetch('/api/admin/trips').then(r => r.json()).catch(() => ({ total: 0 })),
+    ]).then(([destData, userData, tripData]) => {
+      setDestinations(destData.destinations || []);
+      setUserCount(userData.users?.length ?? 0);
+      setTripCount(tripData.total ?? 0);
+      setLoading(false);
+    });
+
     return () => cancelAnimationFrame(frame);
   }, []);
 
+  // Computed from fetched destinations
+  const destCount = destinations.length;
+  const regionCounts: Record<string, number> = {};
+  destinations.forEach(d => { regionCounts[d.region.en] = (regionCounts[d.region.en] || 0) + 1; });
+  const avgCrowd = destCount > 0 ? (destinations.reduce((s, d) => s + d.crowd_level, 0) / destCount).toFixed(1) : '0';
+  const freeCount = destinations.filter(d => d.ticket_cost_omr === 0).length;
+
+  const POPULAR_REGIONS = Object.entries(regionCounts)
+    .sort(([,a],[,b]) => b - a)
+    .map(([region, count]) => ({
+      nameEn: region.charAt(0).toUpperCase() + region.slice(1),
+      nameAr: REGION_AR[region] || region,
+      pct: destCount > 0 ? Math.round((count / destCount) * 100) : 0,
+      count,
+    }));
+
+  const TOP_DESTINATIONS = [...destinations]
+    .sort((a, b) => b.categories.length - a.categories.length || a.crowd_level - b.crowd_level)
+    .slice(0, 5)
+    .map((d) => ({
+      nameEn: d.name.en,
+      nameAr: d.name.ar,
+      views: d.categories.length,
+      label: `${d.categories.length} categories`,
+    }));
+
   const KPI_DATA = [
     { labelEn: 'Total Destinations', labelAr: 'إجمالي الوجهات', value: String(destCount), trend: `${Object.keys(regionCounts).length} regions`, icon: MapPin, color: 'text-teal-600', bg: 'bg-teal-50' },
-    { labelEn: 'Free Attractions', labelAr: 'مجانية الدخول', value: String(freeCount), trend: `${((freeCount/destCount)*100).toFixed(0)}%`, icon: CalendarCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { labelEn: 'Trips Generated', labelAr: 'الرحلات المولدة', value: String(tripCount), trend: 'live', icon: CalendarCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
     { labelEn: 'Registered Users', labelAr: 'المستخدمين المسجلين', value: String(userCount), trend: 'live', icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
     { labelEn: 'Avg Crowd Level', labelAr: 'متوسط الازدحام', value: avgCrowd, trend: '/5', icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   ];
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className={`text-2xl font-bold text-gray-900 ${isRtl ? 'text-right' : ''}`}>
+            {isRtl ? 'نظرة عامة' : 'Overview'}
+          </h1>
+          <p className={`text-sm text-gray-500 mt-1 ${isRtl ? 'text-right' : ''}`}>
+            {isRtl ? 'ملخص لوحة تحكم منصة دروب' : 'Duroob platform dashboard summary'}
+          </p>
+        </div>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={28} className="animate-spin text-teal-600" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

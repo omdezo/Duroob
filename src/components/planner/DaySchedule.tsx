@@ -3,6 +3,7 @@
 import type { DayPlan } from '@/types/itinerary';
 import StopCard from './StopCard';
 import { MapPin, Clock, Route } from 'lucide-react';
+import WeatherBadge from '../shared/WeatherBadge';
 
 interface DayScheduleProps {
   day: DayPlan;
@@ -42,9 +43,12 @@ export default function DaySchedule({ day, locale, activeStopIndex, onStopClick 
             <p className="font-bold text-gray-800">
               {isRtl ? `اليوم ${day.dayNumber}` : `Day ${day.dayNumber}`}
             </p>
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <MapPin size={11} />
-              <span>{regionLabel}</span>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="inline-flex items-center gap-1">
+                <MapPin size={11} />
+                {regionLabel}
+              </span>
+              <WeatherBadge region={day.region} locale={locale} compact />
             </div>
           </div>
         </div>

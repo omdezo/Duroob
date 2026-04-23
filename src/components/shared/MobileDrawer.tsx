@@ -16,6 +16,7 @@ import {
   LogOut,
   User as UserIcon,
   Map,
+  Users,
 } from 'lucide-react';
 
 interface MobileDrawerProps {
@@ -37,6 +38,7 @@ export default function MobileDrawer({ locale, isOpen, onClose }: MobileDrawerPr
     { href: `/${locale}/destinations`, label: t('destinations'), icon: <MapPin size={20} /> },
     { href: `/${locale}/planner`, label: t('planner'), icon: <CalendarDays size={20} /> },
     { href: `/${locale}/chat`, label: t('chat'), icon: <MessageCircle size={20} /> },
+    { href: `/${locale}/community`, label: isRtl ? 'المجتمع' : 'Community', icon: <Users size={20} /> },
   ];
 
   return (

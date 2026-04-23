@@ -2,7 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import { DESTINATIONS } from '@/data/destinations';
 import { filterDestinations, parseFiltersFromSearchParams } from '@/lib/utils/destinationFilters';
 import FilterBar from '@/components/catalogue/FilterBar';
-import DestinationGrid from '@/components/catalogue/DestinationGrid';
+import NearMeGrid from '@/components/catalogue/NearMeGrid';
 import DestinationSearch from '@/components/catalogue/DestinationSearch';
 
 interface PageProps {
@@ -53,7 +53,7 @@ export default async function DestinationsPage({ params, searchParams }: PagePro
 
         {/* Grid */}
         <div className="flex-1 min-w-0">
-          <DestinationGrid destinations={destinations} locale={locale} />
+          <NearMeGrid destinations={destinations} locale={locale} />
         </div>
       </div>
     </div>

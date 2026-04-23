@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { MapPin, Compass, CalendarDays, Globe, Menu, MessageCircle } from 'lucide-react';
+import { MapPin, Compass, CalendarDays, Globe, Menu, MessageCircle, Users } from 'lucide-react';
 import MobileDrawer from './MobileDrawer';
 import UserMenu from './UserMenu';
 
@@ -27,6 +27,7 @@ export default function Navbar({ locale }: NavbarProps) {
     { href: `/${locale}/destinations`, label: t('destinations'), icon: <MapPin size={16} /> },
     { href: `/${locale}/planner`, label: t('planner'), icon: <CalendarDays size={16} /> },
     { href: `/${locale}/chat`, label: t('chat'), icon: <MessageCircle size={16} /> },
+    { href: `/${locale}/community`, label: locale === 'ar' ? 'المجتمع' : 'Community', icon: <Users size={16} /> },
   ];
 
   return (

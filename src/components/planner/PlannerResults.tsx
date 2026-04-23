@@ -6,7 +6,9 @@ import type { ItineraryPlan } from '@/types/itinerary';
 import RegionAllocationView from './RegionAllocationView';
 import CostBreakdownPanel from './CostBreakdownPanel';
 import DaySchedule from './DaySchedule';
-import { Map, ChevronLeft, ChevronRight } from 'lucide-react';
+import WeatherBadge from '../shared/WeatherBadge';
+import { REGION_NAMES } from '@/lib/constants';
+import { Map, ChevronLeft, ChevronRight, CloudSun } from 'lucide-react';
 
 const ItineraryMap = dynamic(() => import('./ItineraryMap'), { ssr: false });
 
@@ -45,6 +47,34 @@ export default function PlannerResults({ plan, locale }: PlannerResultsProps) {
 
       {/* Region allocation */}
       <RegionAllocationView allocations={plan.regionAllocation} locale={locale} />
+
+      {/* Weather snapshot per region */}
+      {(() => {
+        const regions = Array.from(new Set(plan.days.map((d) => d.region)));
+        if (regions.length === 0) return null;
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <CloudSun size={16} className="text-sky-500" />
+              <h3 className="font-semibold text-gray-800 text-sm">
+                {isRtl ? 'الطقس الحالي في مناطقك' : 'Current Weather in Your Regions'}
+              </h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {regions.map((r) => (
+                <div key={r} className="flex items-start justify-between gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50/40">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      {REGION_NAMES[r]?.[isRtl ? 'ar' : 'en'] || r}
+                    </p>
+                  </div>
+                  <WeatherBadge region={r} locale={locale} />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Day navigation */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
