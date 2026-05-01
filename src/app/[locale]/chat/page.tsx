@@ -34,8 +34,77 @@ function cleanText(raw: string): string {
   return t.trim();
 }
 
-function lp(m:string):Partial<PlannerInputs>|null{const l=m.toLowerCase();const r:Partial<PlannerInputs>={};let o=false;const d=l.match(/(\d+)\s*(?:days?|أيام|يوم|ايام)/);if(d){r.durationDays=Math.min(Math.max(parseInt(d[1]),1),7)as any;o=true}if(/يومين|يومان/.test(l)){r.durationDays=2 as any;o=true}if(/خمس/.test(m)){r.durationDays=5 as any;o=true}if(/ثلاث/.test(m)){r.durationDays=3 as any;o=true}if(/اربع|أربع/.test(m)){r.durationDays=4 as any;o=true}const rm:Record<string,Region>={muscat:'muscat',مسقط:'muscat',salalah:'dhofar',صلالة:'dhofar',صلاله:'dhofar',dhofar:'dhofar',ظفار:'dhofar',nizwa:'dakhiliya',نزوى:'dakhiliya',نزوا:'dakhiliya',dakhiliya:'dakhiliya',الداخلية:'dakhiliya',sharqiya:'sharqiya',الشرقية:'sharqiya',batinah:'batinah',الباطنة:'batinah',dhahira:'dhahira',الظاهرة:'dhahira',sur:'sharqiya',صور:'sharqiya',sohar:'batinah',صحار:'batinah',نخل:'batinah'};const rg=[...new Set(Object.entries(rm).filter(([k])=>l.includes(k)||m.includes(k)).map(([,v])=>v))];if(rg.length){r.preferredRegions=rg;o=true}const cm:Record<string,Category>={beach:'beach',شاطئ:'beach',شواطئ:'beach',بحر:'beach',culture:'culture',ثقافة:'culture',تاريخ:'culture',قلعة:'culture',mountain:'mountain',جبل:'mountain',جبال:'mountain',desert:'desert',صحراء:'desert',food:'food',طعام:'food',أكل:'food',اكل:'food',nature:'nature',طبيعة:'nature',وادي:'nature'};const cs=[...new Set(Object.entries(cm).filter(([k])=>l.includes(k)||m.includes(k)).map(([,v])=>v))];if(cs.length){r.preferredCategories=cs;o=true}const b=l.match(/(\d+)\s*(?:omr|rial|ريال)/);if(b){r.customBudgetOmr=parseInt(b[1]);o=true}return o?r:null}
-function bi(p:Partial<PlannerInputs>):PlannerInputs{return{durationDays:(p.durationDays??3)as any,budgetTier:p.budgetTier??'medium',customBudgetOmr:p.customBudgetOmr,travelMonth:(p.travelMonth??(new Date().getMonth()+1))as any,intensity:'balanced',preferredCategories:p.preferredCategories??[],preferredRegions:p.preferredRegions}}
+// Client-side fallback parser. Only runs when /api/chat is unreachable so
+// the user still gets a usable plan from a sentence like "3 days in Muscat".
+const REGION_ALIASES: Record<string, Region> = {
+  muscat: 'muscat', مسقط: 'muscat',
+  salalah: 'dhofar', صلالة: 'dhofar', صلاله: 'dhofar', dhofar: 'dhofar', ظفار: 'dhofar',
+  nizwa: 'dakhiliya', نزوى: 'dakhiliya', نزوا: 'dakhiliya',
+  dakhiliya: 'dakhiliya', الداخلية: 'dakhiliya',
+  sharqiya: 'sharqiya', الشرقية: 'sharqiya', sur: 'sharqiya', صور: 'sharqiya',
+  batinah: 'batinah', الباطنة: 'batinah', sohar: 'batinah', صحار: 'batinah', نخل: 'batinah',
+  dhahira: 'dhahira', الظاهرة: 'dhahira',
+};
+const CATEGORY_ALIASES: Record<string, Category> = {
+  beach: 'beach', شاطئ: 'beach', شواطئ: 'beach', بحر: 'beach',
+  culture: 'culture', ثقافة: 'culture', تاريخ: 'culture', قلعة: 'culture',
+  mountain: 'mountain', جبل: 'mountain', جبال: 'mountain',
+  desert: 'desert', صحراء: 'desert',
+  food: 'food', طعام: 'food', أكل: 'food', اكل: 'food',
+  nature: 'nature', طبيعة: 'nature', وادي: 'nature',
+};
+
+function localParseInputs(message: string): Partial<PlannerInputs> | null {
+  const lower = message.toLowerCase();
+  const out: Partial<PlannerInputs> = {};
+  let matched = false;
+
+  // Numeric duration
+  const dMatch = lower.match(/(\d+)\s*(?:days?|أيام|يوم|ايام)/);
+  if (dMatch) {
+    out.durationDays = Math.min(Math.max(parseInt(dMatch[1], 10), 1), 7) as PlannerInputs['durationDays'];
+    matched = true;
+  }
+  // Arabic written numbers
+  if (/يومين|يومان/.test(lower)) { out.durationDays = 2 as PlannerInputs['durationDays']; matched = true; }
+  if (/خمس/.test(message))     { out.durationDays = 5 as PlannerInputs['durationDays']; matched = true; }
+  if (/ثلاث/.test(message))     { out.durationDays = 3 as PlannerInputs['durationDays']; matched = true; }
+  if (/اربع|أربع/.test(message)){ out.durationDays = 4 as PlannerInputs['durationDays']; matched = true; }
+
+  // Regions
+  const regions = [...new Set(
+    Object.entries(REGION_ALIASES)
+      .filter(([alias]) => lower.includes(alias) || message.includes(alias))
+      .map(([, region]) => region),
+  )];
+  if (regions.length) { out.preferredRegions = regions; matched = true; }
+
+  // Categories
+  const categories = [...new Set(
+    Object.entries(CATEGORY_ALIASES)
+      .filter(([alias]) => lower.includes(alias) || message.includes(alias))
+      .map(([, cat]) => cat),
+  )];
+  if (categories.length) { out.preferredCategories = categories; matched = true; }
+
+  // Budget
+  const budget = lower.match(/(\d+)\s*(?:omr|rial|ريال)/);
+  if (budget) { out.customBudgetOmr = parseInt(budget[1], 10); matched = true; }
+
+  return matched ? out : null;
+}
+
+function buildInputs(partial: Partial<PlannerInputs>): PlannerInputs {
+  return {
+    durationDays: (partial.durationDays ?? 3) as PlannerInputs['durationDays'],
+    budgetTier: partial.budgetTier ?? 'medium',
+    customBudgetOmr: partial.customBudgetOmr,
+    travelMonth: (partial.travelMonth ?? (new Date().getMonth() + 1)) as PlannerInputs['travelMonth'],
+    intensity: 'balanced',
+    preferredCategories: partial.preferredCategories ?? [],
+    preferredRegions: partial.preferredRegions,
+  };
+}
 
 export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
   const {locale}=use(params);
@@ -98,14 +167,18 @@ export default function ChatPage({params}:{params:Promise<{locale:string}>}) {
     const up=(patch:Partial<Msg>)=>setMsgs(p=>{const i=p.findIndex(m=>m.id===aid);const b:Msg={id:aid,role:'assistant',content:''};if(i===-1)return[...p,{...b,...patch}];const n=[...p];n[i]={...n[i],...patch};return n});
     try{
       const h=msgs.slice(-8).map(m=>({role:m.role,content:m.content}));
-      const res=await fetch(`/api/chat/sessions/${sessionId}/messages`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:msg,locale,history:h})});
+      // Send the most recent plan + scores so the agent's save_trip tool can persist it.
+      const lastWithPlan=[...msgs].reverse().find(m=>m.plan);
+      const currentPlan=lastWithPlan?.plan;
+      const currentScores=lastWithPlan?.scores;
+      const res=await fetch(`/api/chat/sessions/${sessionId}/messages`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:msg,locale,history:h,currentPlan,currentScores})});
       if(!res.ok||!res.body)throw new Error();
       const reader=res.body.getReader();const dec=new TextDecoder();let buf='';
       while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop()??'';for(const ln of lines){if(!ln.startsWith('data: '))continue;try{const d=JSON.parse(ln.slice(6));if(d.content)up({content:d.content});if(d.durationDays!==undefined)up({parsed:d});if(d.result?.plan){up({plan:d.result.plan,scores:d.result.scores});sp(d.result.plan,d.result.scores,'chat')}}catch{}}}
     }catch{
-      const parsed=lp(msg);
+      const parsed=localParseInputs(msg);
       if(parsed&&(parsed.durationDays||parsed.preferredRegions?.length)){
-        const inp=bi(parsed);const plan=generateItinerary(inp);const scores=scorePlan(plan);sp(plan,scores,'chat');
+        const inp=buildInputs(parsed);const plan=generateItinerary(inp);const scores=scorePlan(plan);sp(plan,scores,'chat');
         const stops=plan.days.reduce((s,d)=>s+d.stops.length,0);const regions=[...new Set(plan.days.map(d=>ar?(RA[d.region]||d.region):d.region))];
         up({content:ar?`رحلتك جاهزة! ${stops} محطة في ${regions.join(' و ')}`:`Your trip is ready! ${stops} stops across ${regions.join(' & ')}`,plan,scores,parsed:parsed as any});
       }else{up({content:ar?'مرحباً! جرب: "رحلة 3 أيام مسقط"':'Hi! Try: "3 days in Muscat"'});}
