@@ -1,3 +1,9 @@
+// Drizzle schema reflection of the live Neon database.
+// Source of truth lives in src/db/migrations/. Keep this file in sync.
+//
+// We don't actually use Drizzle to query — we use raw SQL via @neondatabase/serverless.
+// This file exists so types and shapes are documented and IDE-checked.
+
 import {
   pgTable,
   text,
@@ -6,9 +12,9 @@ import {
   integer,
   boolean,
   doublePrecision,
+  numeric,
   timestamp,
   jsonb,
-  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -17,30 +23,12 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').unique().notNull(),
   name: text('name'),
-  avatarUrl: text('avatar_url'),
+  password: text('password').notNull(),
   role: text('role').default('user'),
   localePref: text('locale_pref').default('en'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
-
-// ─── REGIONS ────────────────────────────────────────────────────────────────
-export const regions = pgTable('regions', {
-  id: serial('id').primaryKey(),
-  slug: text('slug').unique().notNull(),
-  nameEn: text('name_en').notNull(),
-  nameAr: text('name_ar').notNull(),
-  latCenter: doublePrecision('lat_center'),
-  lngCenter: doublePrecision('lng_center'),
-});
-
-// ─── CATEGORIES ─────────────────────────────────────────────────────────────
-export const categories = pgTable('categories', {
-  id: serial('id').primaryKey(),
-  slug: text('slug').unique().notNull(),
-  nameEn: text('name_en').notNull(),
-  nameAr: text('name_ar').notNull(),
-  icon: text('icon').notNull(),
+  emailVerified: boolean('email_verified').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 // ─── DESTINATIONS ───────────────────────────────────────────────────────────
@@ -48,119 +36,89 @@ export const destinations = pgTable('destinations', {
   id: text('id').primaryKey(),
   nameEn: text('name_en').notNull(),
   nameAr: text('name_ar').notNull(),
-  descriptionEn: text('description_en'),
-  descriptionAr: text('description_ar'),
-  lat: doublePrecision('lat').notNull(),
-  lng: doublePrecision('lng').notNull(),
-  regionId: integer('region_id').references(() => regions.id),
+  lat: doublePrecision('lat'),
+  lng: doublePrecision('lng'),
+  regionEn: text('region_en'),
+  regionAr: text('region_ar'),
+  categories: text('categories').array(),
   companyEn: text('company_en'),
   companyAr: text('company_ar'),
   avgVisitMin: integer('avg_visit_min').default(60),
-  ticketCost: doublePrecision('ticket_cost').default(0),
-  crowdLevel: integer('crowd_level'),
-  images: text('images').array().default(sql`'{}'`),
+  ticketCost: numeric('ticket_cost').default('0'),
+  crowdLevel: integer('crowd_level').default(3),
+  recommendedMonths: integer('recommended_months').array(),
   isActive: boolean('is_active').default(true),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  imageUrl: text('image_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
-
-// ─── DESTINATION ↔ CATEGORIES (M2M) ────────────────────────────────────────
-export const destinationCategories = pgTable(
-  'destination_categories',
-  {
-    destinationId: text('destination_id')
-      .notNull()
-      .references(() => destinations.id),
-    categoryId: integer('category_id')
-      .notNull()
-      .references(() => categories.id),
-  },
-  (t) => ({
-    pk: primaryKey({ columns: [t.destinationId, t.categoryId] }),
-  }),
-);
-
-// ─── DESTINATION ↔ RECOMMENDED MONTHS (M2M) ────────────────────────────────
-export const destinationMonths = pgTable(
-  'destination_months',
-  {
-    destinationId: text('destination_id')
-      .notNull()
-      .references(() => destinations.id),
-    month: integer('month').notNull(),
-  },
-  (t) => ({
-    pk: primaryKey({ columns: [t.destinationId, t.month] }),
-  }),
-);
 
 // ─── SAVED TRIPS ────────────────────────────────────────────────────────────
 export const savedTrips = pgTable('saved_trips', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(() => users.id),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
   title: text('title'),
-  inputsJson: jsonb('inputs_json').notNull(),
-  planJson: jsonb('plan_json').notNull(),
-  scoresJson: jsonb('scores_json'),
-  isShared: boolean('is_shared').default(false),
-  shareToken: text('share_token').unique(),
-  createdAt: timestamp('created_at').defaultNow(),
+  inputsJson: jsonb('inputs_json').notNull().default(sql`'{}'::jsonb`),
+  planJson: jsonb('plan_json').notNull().default(sql`'{}'::jsonb`),
+  scoresJson: jsonb('scores_json').default(sql`'{}'::jsonb`),
+  isPublic: boolean('is_public').default(false),
+  shareCount: integer('share_count').default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 // ─── SAVED INTERESTS ────────────────────────────────────────────────────────
 export const savedInterests = pgTable('saved_interests', {
   id: serial('id').primaryKey(),
-  userId: uuid('user_id').references(() => users.id),
-  destinationId: text('destination_id').references(() => destinations.id),
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-// ─── ANALYTICS EVENTS ───────────────────────────────────────────────────────
-export const analyticsEvents = pgTable('analytics_events', {
-  id: serial('id').primaryKey(),
-  eventType: text('event_type').notNull(),
-  userId: uuid('user_id').references(() => users.id),
-  sessionId: text('session_id'),
-  payload: jsonb('payload').default(sql`'{}'`),
-  createdAt: timestamp('created_at').defaultNow(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  destinationId: text('destination_id').references(() => destinations.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 
 // ─── CHAT SESSIONS ──────────────────────────────────────────────────────────
 export const chatSessions = pgTable('chat_sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').references(() => users.id),
-  title: text('title'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  id: text('id').primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  userEmail: text('user_email'),
+  userName: text('user_name'),
+  messageCount: integer('message_count').default(0),
+  hasPlan: boolean('has_plan').default(false),
+  lastMessage: text('last_message'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
 // ─── CHAT MESSAGES ──────────────────────────────────────────────────────────
 export const chatMessages = pgTable('chat_messages', {
   id: serial('id').primaryKey(),
-  sessionId: uuid('session_id').references(() => chatSessions.id),
+  sessionId: text('session_id').notNull().references(() => chatSessions.id, { onDelete: 'cascade' }),
   role: text('role').notNull(),
   content: text('content').notNull(),
+  planJson: jsonb('plan_json'),
   toolCalls: jsonb('tool_calls'),
-  planSnapshot: jsonb('plan_snapshot'),
-  createdAt: timestamp('created_at').defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });
 
-// ─── ADMIN AUDIT LOG ────────────────────────────────────────────────────────
-export const adminAuditLog = pgTable('admin_audit_log', {
+// ─── TRIP ANALYTICS ─────────────────────────────────────────────────────────
+export const tripAnalytics = pgTable('trip_analytics', {
   id: serial('id').primaryKey(),
-  adminUserId: uuid('admin_user_id').references(() => users.id),
+  duration: integer('duration'),
+  tier: text('tier'),
+  regions: text('regions').array(),
+  totalCost: numeric('total_cost'),
+  safetyScore: numeric('safety_score'),
+  enjoymentScore: numeric('enjoyment_score'),
+  overall: text('overall'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// ─── AUDIT LOG ──────────────────────────────────────────────────────────────
+export const auditLog = pgTable('audit_log', {
+  id: serial('id').primaryKey(),
+  adminEmail: text('admin_email'),
   action: text('action').notNull(),
   targetType: text('target_type'),
   targetId: text('target_id'),
-  oldValue: jsonb('old_value'),
-  newValue: jsonb('new_value'),
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-// ─── PLATFORM SETTINGS ──────────────────────────────────────────────────────
-export const platformSettings = pgTable('platform_settings', {
-  key: text('key').primaryKey(),
-  value: jsonb('value').notNull(),
-  updatedBy: uuid('updated_by').references(() => users.id),
-  updatedAt: timestamp('updated_at').defaultNow(),
+  details: text('details'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });

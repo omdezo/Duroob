@@ -4,6 +4,8 @@ import { z } from 'zod/v4';
 import { generateItinerary } from '@/lib/planner/itineraryEngine';
 import { scorePlan } from '@/lib/planner/tripScorer';
 import type { BudgetTier } from '@/types/planner';
+import { plannerLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
 const CompareInputsSchema = z.object({
   durationDays: z.number().int().min(1).max(7),
@@ -38,6 +40,8 @@ const CompareInputsSchema = z.object({
 const TIERS: BudgetTier[] = ['low', 'medium', 'luxury'];
 
 export async function POST(request: NextRequest) {
+  const limited = await rateLimit(request, plannerLimiter);
+  if (limited) return limited;
   try {
     const body = await request.json();
 

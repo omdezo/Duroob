@@ -4,6 +4,8 @@ import { z } from 'zod/v4';
 import { generateItinerary } from '@/lib/planner/itineraryEngine';
 import { scorePlan } from '@/lib/planner/tripScorer';
 import { getDb } from '@/db';
+import { plannerLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
 const PlannerInputsSchema = z.object({
   durationDays: z.number().int().min(1).max(7),
@@ -38,6 +40,8 @@ const PlannerInputsSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const limited = await rateLimit(request, plannerLimiter);
+  if (limited) return limited;
   try {
     const body = await request.json();
 

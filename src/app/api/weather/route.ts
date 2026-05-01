@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { REGION_CENTERS } from '@/lib/constants';
+import { readLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
 // Simple in-memory cache — weather doesn't change by the second.
 // Serverless instances may not share, but that's fine; worst case we hit Open-Meteo more.
@@ -65,6 +67,8 @@ async function fetchWeather(lat: number, lng: number): Promise<WeatherSummary | 
 // GET /api/weather?regions=muscat,dhofar  → batch
 // GET /api/weather?lat=23.5&lng=58.4  → raw coords
 export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, readLimiter);
+  if (limited) return limited;
   const { searchParams } = new URL(request.url);
   const region = searchParams.get('region');
   const regions = searchParams.get('regions');

@@ -1,26 +1,34 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod/v4';
 import { getDb } from '@/db';
 import { auth } from '@/lib/auth';
+import { apiLimiter, readLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
+
+const ShareSchema = z.object({ isPublic: z.boolean() });
 
 // POST /api/trips/:id/share   body: { isPublic: boolean }
 // Toggles public visibility of a trip. Must be the trip owner.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const limited = await rateLimit(request, apiLimiter);
+  if (limited) return limited;
+
   try {
     const session = await auth();
     const userId = (session?.user as any)?.id;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
-    const { isPublic } = await request.json();
-    if (typeof isPublic !== 'boolean') {
+    const parsed = ShareSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json({ error: 'isPublic must be boolean' }, { status: 400 });
     }
 
     const sql = getDb();
     const rows = await sql`
       UPDATE saved_trips
-      SET is_public = ${isPublic}
+      SET is_public = ${parsed.data.isPublic}
       WHERE id = ${id} AND user_id = ${userId}
       RETURNING id, is_public
     `;
@@ -34,9 +42,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-// POST-ish counter bump on view — separate endpoint to avoid conflating writes
-// GET /api/trips/:id/share  →  bumps share_count (fire-and-forget from community page)
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// GET /api/trips/:id/share  →  bumps share_count (fire-and-forget from community page).
+// Heavily rate-limited — one IP can only bump a counter at most ~120/min.
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const limited = await rateLimit(request, readLimiter);
+  if (limited) return limited;
+
   try {
     const { id } = await params;
     const sql = getDb();

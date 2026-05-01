@@ -31,6 +31,15 @@ export const chatLimiter = createRateLimiter(10, '1 m');
 // Admin writes: 5 per minute
 export const adminLimiter = createRateLimiter(5, '1 m');
 
+// Auth: 5 attempts per 10 minutes (login/register)
+export const authLimiter = createRateLimiter(5, '10 m');
+
+// Planner: 12 plan generations per minute (Gemini cost guard)
+export const plannerLimiter = createRateLimiter(12, '1 m');
+
+// Cheap public reads: 120 per minute
+export const readLimiter = createRateLimiter(120, '1 m');
+
 export async function checkRateLimit(
   limiter: { limit: (id: string) => Promise<{ success: boolean; remaining: number }> },
   identifier: string

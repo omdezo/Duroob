@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
+import { requireAdmin } from '@/lib/requireAdmin';
+
+const ALLOWED = new Set(['destinations', 'trips', 'users', 'audit']);
 
 export async function GET(req: Request) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   const url = new URL(req.url);
   const type = url.searchParams.get('type') || 'destinations';
+  if (!ALLOWED.has(type)) {
+    return NextResponse.json({ error: 'Invalid export type' }, { status: 400 });
+  }
   const sql = getDb();
 
   let rows: Record<string, unknown>[] = [];
@@ -17,7 +26,7 @@ export async function GET(req: Request) {
   const headers = Object.keys(rows[0]);
   const csv = [
     headers.join(','),
-    ...rows.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(',')),
+    ...rows.map((r) => headers.map((h) => JSON.stringify(r[h] ?? '')).join(',')),
   ].join('\n');
 
   return new Response(csv, {

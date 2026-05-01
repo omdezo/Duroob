@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getActiveDestinations } from '@/db';
+import { readLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
 export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, readLimiter);
+  if (limited) return limited;
   try {
     const q = request.nextUrl.searchParams.get('q')?.toLowerCase().trim() ?? '';
 

@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { getActiveDestinations } from '@/db';
+import { readLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
 export async function GET(request: Request) {
+  const limited = await rateLimit(request, readLimiter);
+  if (limited) return limited;
   try {
     const url = new URL(request.url);
     const context = url.searchParams.get('context') || 'trending_now';

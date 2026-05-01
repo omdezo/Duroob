@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getDb } from '@/db';
+import { readLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
 // GET /api/community/trips/:id  →  returns a single public trip
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const limited = await rateLimit(req, readLimiter);
+  if (limited) return limited;
   try {
     const { id } = await params;
     const sql = getDb();

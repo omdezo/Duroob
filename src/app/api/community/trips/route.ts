@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getDb } from '@/db';
 import { auth } from '@/lib/auth';
+import { readLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
 // GET /api/community/trips?limit=24&region=muscat
 // Lists public saved trips + a "for you" personalized slice if authed.
 export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, readLimiter);
+  if (limited) return limited;
   try {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '24', 10), 60);

@@ -1,9 +1,21 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod/v4';
 import { getDb } from '@/db';
 import { auth } from '@/lib/auth';
+import { apiLimiter, readLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
-export async function GET() {
+const SaveTripSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  inputsJson: z.record(z.string(), z.unknown()).optional(),
+  planJson: z.record(z.string(), z.unknown()),
+  scoresJson: z.record(z.string(), z.unknown()).optional(),
+});
+
+export async function GET(request: NextRequest) {
+  const limited = await rateLimit(request, readLimiter);
+  if (limited) return limited;
   try {
     const session = await auth();
     if (!session?.user) {
@@ -28,23 +40,22 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const limited = await rateLimit(request, apiLimiter);
+  if (limited) return limited;
   try {
     const session = await auth();
     const userId = (session?.user as any)?.id || null;
     const userEmail = session?.user?.email || 'guest';
 
-    const body = await request.json();
-
-    if (!body.title || !body.planJson) {
-      return NextResponse.json({ error: 'title and planJson required' }, { status: 400 });
+    const parsed = SaveTripSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'title and planJson required', details: parsed.error.issues }, { status: 400 });
     }
 
     const sql = getDb();
-
-    const title = body.title;
-    const inputsJson = body.inputsJson || {};
-    const planJson = body.planJson;
-    const scoresJson = body.scoresJson || {};
+    const { title, planJson } = parsed.data;
+    const inputsJson = parsed.data.inputsJson ?? {};
+    const scoresJson = parsed.data.scoresJson ?? {};
 
     const rows = await sql`
       INSERT INTO saved_trips (user_id, title, inputs_json, plan_json, scores_json)

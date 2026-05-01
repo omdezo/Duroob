@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getActiveDestinations } from '@/db';
+import { readLimiter } from '@/lib/rateLimit';
+import { rateLimit } from '@/lib/withRateLimit';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const limited = await rateLimit(request, readLimiter);
+  if (limited) return limited;
   try {
     const { id } = await params;
     const destinations = await getActiveDestinations();
