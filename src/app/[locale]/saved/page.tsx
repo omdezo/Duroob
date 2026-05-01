@@ -5,7 +5,7 @@ import { use } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
 import { useInterestStore } from '@/store/interestStore';
-import { DESTINATIONS } from '@/data/destinations';
+import type { Destination } from '@/types/destination';
 import DestinationCard from '@/components/marketing/DestinationCard';
 import { Heart, Trash2, CalendarDays, LogIn } from 'lucide-react';
 import Link from 'next/link';
@@ -21,6 +21,7 @@ export default function SavedPage({ params }: PageProps) {
   const { data: session } = useSession();
 
   const [hydrated, setHydrated] = useState(false);
+  const [allDestinations, setAllDestinations] = useState<Destination[]>([]);
   const savedIds = useInterestStore((s) => s.savedIds);
   const removeInterest = useInterestStore((s) => s.removeInterest);
   const clearAll = useInterestStore((s) => s.clearAll);
@@ -30,7 +31,14 @@ export default function SavedPage({ params }: PageProps) {
     setHydrated(true);
   }, []);
 
-  const savedDestinations = DESTINATIONS.filter((d) => savedIds.includes(d.id));
+  useEffect(() => {
+    fetch('/api/destinations?limit=100')
+      .then((r) => r.json())
+      .then((data) => setAllDestinations(data.data ?? []))
+      .catch(() => setAllDestinations([]));
+  }, []);
+
+  const savedDestinations = allDestinations.filter((d) => savedIds.includes(d.id));
 
   if (!hydrated) {
     return (

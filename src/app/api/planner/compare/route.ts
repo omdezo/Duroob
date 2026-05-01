@@ -6,6 +6,8 @@ import { scorePlan } from '@/lib/planner/tripScorer';
 import type { BudgetTier } from '@/types/planner';
 import { plannerLimiter } from '@/lib/rateLimit';
 import { rateLimit } from '@/lib/withRateLimit';
+import { getActiveDestinations } from '@/db';
+import { withDestinations } from '@/lib/planner/destinationsContextServer';
 
 const CompareInputsSchema = z.object({
   durationDays: z.number().int().min(1).max(7),
@@ -54,13 +56,16 @@ export async function POST(request: NextRequest) {
     }
 
     const baseInputs = parsed.data;
+    const destinations = await getActiveDestinations();
 
-    const comparisons = TIERS.map((tier) => {
-      const inputs = { ...baseInputs, budgetTier: tier };
-      const plan = generateItinerary(inputs as Parameters<typeof generateItinerary>[0]);
-      const scores = scorePlan(plan);
-      return { tier, plan, scores };
-    });
+    const comparisons = await withDestinations(destinations, () =>
+      TIERS.map((tier) => {
+        const inputs = { ...baseInputs, budgetTier: tier };
+        const plan = generateItinerary(inputs as Parameters<typeof generateItinerary>[0]);
+        const scores = scorePlan(plan);
+        return { tier, plan, scores };
+      }),
+    );
 
     return NextResponse.json({ comparisons });
   } catch (error) {

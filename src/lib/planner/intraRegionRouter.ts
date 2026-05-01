@@ -17,7 +17,7 @@
 import type { Destination, LatLng } from '@/types/destination';
 import type { DayPlan, ScheduledStop } from '@/types/itinerary';
 import type { PlannerInputs, RegionAllocation } from '@/types/planner';
-import { DESTINATIONS } from '@/data/destinations';
+import { currentDestinations } from './destinationsContext';
 import { distanceKm, totalKm } from './haversine';
 import { scoreDestination, topComponents } from './scoring';
 import { twoOptImprove } from './twoOpt';
@@ -90,7 +90,7 @@ function buildRegionDays(
   inputs: PlannerInputs,
   usedIds: Set<string>
 ): DayPlan[] {
-  const regionDests = DESTINATIONS.filter(
+  const regionDests = currentDestinations().filter(
     d => d.region.en === allocation.region && !usedIds.has(d.id)
   );
 
@@ -193,7 +193,7 @@ function buildRegionDays(
       });
     }
 
-    const firstRegionDest = DESTINATIONS.find(d => d.region.en === allocation.region);
+    const firstRegionDest = currentDestinations().find(d => d.region.en === allocation.region);
     days.push({
       dayNumber,
       region: allocation.region,

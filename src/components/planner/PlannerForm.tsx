@@ -7,8 +7,7 @@ import { usePlannerStore } from '@/store/plannerStore';
 import { generateItinerary } from '@/lib/planner/itineraryEngine';
 import { scorePlan } from '@/lib/planner/tripScorer';
 import type { PlannerInputs } from '@/types/planner';
-import type { Category } from '@/types/destination';
-import { DESTINATIONS } from '@/data/destinations';
+import type { Category, Destination } from '@/types/destination';
 import { CalendarDays, Loader2 } from 'lucide-react';
 
 const CATEGORIES: Category[] = ['mountain', 'beach', 'culture', 'desert', 'nature', 'food'];
@@ -49,15 +48,22 @@ export default function PlannerForm({ locale }: PlannerFormProps) {
     setHydrated(true);
   }, []);
 
-  // Pre-populate categories from saved interests when first hydrated
+  // Pre-populate categories from saved interests when first hydrated.
+  // Fetch destinations from the API so admin edits are reflected.
   useEffect(() => {
     if (!hydrated) return;
     if (savedIds.length > 0 && localInputs.preferredCategories.length === 0) {
-      const savedDests = DESTINATIONS.filter((d) => savedIds.includes(d.id));
-      const cats = [...new Set(savedDests.flatMap((d) => d.categories))].slice(0, 4) as Category[];
-      if (cats.length > 0) {
-        setLocalInputs((prev) => ({ ...prev, preferredCategories: cats }));
-      }
+      fetch('/api/destinations?limit=100')
+        .then((r) => r.json())
+        .then((data) => {
+          const all: Destination[] = data.data ?? [];
+          const savedDests = all.filter((d) => savedIds.includes(d.id));
+          const cats = [...new Set(savedDests.flatMap((d) => d.categories))].slice(0, 4) as Category[];
+          if (cats.length > 0) {
+            setLocalInputs((prev) => ({ ...prev, preferredCategories: cats }));
+          }
+        })
+        .catch(() => {});
     }
   }, [hydrated, savedIds]);
 

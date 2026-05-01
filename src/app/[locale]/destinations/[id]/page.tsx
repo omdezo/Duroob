@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import { DESTINATIONS } from '@/data/destinations';
+import { getActiveDestinations } from '@/db';
 import { generateDescription } from '@/lib/utils/generateDescription';
 import MonthIndicator from '@/components/detail/MonthIndicator';
 import CrowdMeter from '@/components/detail/CrowdMeter';
@@ -14,14 +14,14 @@ interface PageProps {
   params: Promise<{ locale: string; id: string }>;
 }
 
-export async function generateStaticParams() {
-  const locales = ['en', 'ar'];
-  return DESTINATIONS.flatMap((d) => locales.map((locale) => ({ locale, id: d.id })));
-}
+// Detail pages are now rendered dynamically against the DB. With ~30 destinations
+// the cost is trivial, and admin edits show up immediately.
+export const dynamicParams = true;
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale, id } = await params;
-  const dest = DESTINATIONS.find((d) => d.id === id);
+  const all = await getActiveDestinations();
+  const dest = all.find((d) => d.id === id);
   if (!dest) return {};
   const name = dest.name[locale as 'en' | 'ar'] ?? dest.name.en;
   return {
@@ -44,7 +44,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default async function DestinationDetailPage({ params }: PageProps) {
   const { locale, id } = await params;
-  const dest = DESTINATIONS.find((d) => d.id === id);
+  const all = await getActiveDestinations();
+  const dest = all.find((d) => d.id === id);
   if (!dest) notFound();
 
   const t = await getTranslations({ locale, namespace: 'detail' });
@@ -131,7 +132,7 @@ export default async function DestinationDetailPage({ params }: PageProps) {
 
           {/* Similar Destinations */}
           {(() => {
-            const similar = DESTINATIONS.filter(
+            const similar = all.filter(
               (d) =>
                 d.id !== dest.id &&
                 d.region.en === dest.region.en &&

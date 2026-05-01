@@ -19,7 +19,7 @@
 
 import type { DayPlan, CostBreakdown, ScheduledStop } from '@/types/itinerary';
 import type { BudgetTier, PlannerInputs } from '@/types/planner';
-import { DESTINATIONS } from '@/data/destinations';
+import { currentDestinations } from './destinationsContext';
 import { distanceKm, totalKm } from './haversine';
 import { scoreDestination, topComponents } from './scoring';
 import { twoOptImprove } from './twoOpt';
@@ -137,7 +137,7 @@ export function pruneForBudget(days: DayPlan[], inputs: PlannerInputs): DayPlan[
     if (cost.withinBudget) break;
 
     // Try to find a free/cheaper alternative in the same region with overlapping categories
-    const alternatives = DESTINATIONS.filter(
+    const alternatives = currentDestinations().filter(
       d =>
         d.region.en === day.region &&
         !usedIds.has(d.id) &&

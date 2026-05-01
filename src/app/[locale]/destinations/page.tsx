@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server';
-import { DESTINATIONS } from '@/data/destinations';
+import { getActiveDestinations } from '@/db';
 import { filterDestinations, parseFiltersFromSearchParams } from '@/lib/utils/destinationFilters';
 import FilterBar from '@/components/catalogue/FilterBar';
 import NearMeGrid from '@/components/catalogue/NearMeGrid';
@@ -18,7 +18,8 @@ export default async function DestinationsPage({ params, searchParams }: PagePro
   const filters = parseFiltersFromSearchParams(urlParams);
   const searchQuery = sp.q?.toLowerCase() ?? '';
 
-  let destinations = filterDestinations(DESTINATIONS, filters);
+  const all = await getActiveDestinations();
+  let destinations = filterDestinations(all, filters);
 
   // Apply text search
   if (searchQuery) {

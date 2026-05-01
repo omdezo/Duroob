@@ -1,17 +1,19 @@
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
-import { DESTINATIONS } from '@/data/destinations';
+import { getTranslations } from 'next-intl/server';
+import { getActiveDestinations } from '@/db';
 import DestinationCard from './DestinationCard';
 
 interface FeaturedDestinationsProps {
   locale: string;
 }
 
-export default function FeaturedDestinations({ locale }: FeaturedDestinationsProps) {
-  const t = useTranslations('featured');
+export default async function FeaturedDestinations({ locale }: FeaturedDestinationsProps) {
+  const t = await getTranslations({ locale, namespace: 'featured' });
 
-  // Server-side: select top 6 by crowd level desc, tie-break by id for determinism
-  const featured = [...DESTINATIONS]
+  // Top 6 by crowd level desc, tie-break by id for determinism. DB-backed so
+  // admin edits show up here without a redeploy.
+  const all = await getActiveDestinations();
+  const featured = [...all]
     .sort((a, b) => b.crowd_level - a.crowd_level || a.id.localeCompare(b.id))
     .slice(0, 6);
 

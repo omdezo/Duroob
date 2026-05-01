@@ -15,7 +15,8 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { executeTool } from './registry';
-import { DESTINATIONS } from '@/data/destinations';
+import { getActiveDestinations } from '@/db';
+import { withDestinations } from '@/lib/planner/destinationsContextServer';
 import { generateItinerary } from '@/lib/planner/itineraryEngine';
 import { scorePlan, type TripScores } from '@/lib/planner/tripScorer';
 import type { McpContext, McpToolCall, McpToolResult } from './types';
@@ -195,6 +196,7 @@ function smartFallback(
   message: string,
   history: AgentMessage[],
   locale: string,
+  destinations: import('@/types/destination').Destination[],
 ): { toolCall?: McpToolCall; text: string } {
   const msg = message.trim();
   const lower = msg.toLowerCase();
@@ -230,7 +232,7 @@ function smartFallback(
     }
     // General "what places" — list all regions
     const regionList = ALL_REGIONS.map(r => {
-      const count = DESTINATIONS.filter(d => d.region.en === r).length;
+      const count = destinations.filter(d => d.region.en === r).length;
       const name = isAr ? REGION_NAMES_AR[r] : r.charAt(0).toUpperCase() + r.slice(1);
       return `• ${name} (${count} ${isAr ? 'وجهة' : 'destinations'})`;
     }).join('\n');
@@ -761,18 +763,22 @@ export async function runAgent(
 ): Promise<AgentResponse> {
   const isAr = locale === 'ar';
 
+  // Pull live destinations once; share with the planner engine + MCP context.
+  const destinations = await getActiveDestinations();
+
   // Build MCP context
   const ctx: McpContext = {
     locale: locale as 'en' | 'ar',
-    destinations: DESTINATIONS,
+    destinations,
   };
 
+  return withDestinations(destinations, async () => {
   // Step 1: Try Gemini AI
   let aiResult = await tryGemini(message, history, locale);
 
   // Step 2: If AI failed, use smart fallback
   if (!aiResult) {
-    aiResult = smartFallback(message, history, locale);
+    aiResult = smartFallback(message, history, locale, destinations);
   }
 
   // Step 2b: Safety net — if Gemini returned text-only and that text announces intent
@@ -864,4 +870,5 @@ export async function runAgent(
     text: aiResult.text,
     type: aiResult.text.includes('🇴🇲') ? 'greeting' : 'conversation',
   };
+  }); // end withDestinations
 }

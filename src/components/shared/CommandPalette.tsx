@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Search, MapPin, Map, MessageCircle, X } from 'lucide-react';
-import { DESTINATIONS } from '@/data/destinations';
+import type { Destination } from '@/types/destination';
 
 interface CommandPaletteProps {
   locale: string;
@@ -14,6 +14,7 @@ interface CommandPaletteProps {
 export default function CommandPalette({ locale }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [destinations, setDestinations] = useState<Destination[]>([]);
   const router = useRouter();
   const t = useTranslations('nav');
 
@@ -29,17 +30,26 @@ export default function CommandPalette({ locale }: CommandPaletteProps) {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Lazy-load destinations the first time the palette is opened.
+  useEffect(() => {
+    if (!open || destinations.length > 0) return;
+    fetch('/api/destinations?limit=100')
+      .then((r) => r.json())
+      .then((data) => setDestinations(data.data ?? []))
+      .catch(() => {});
+  }, [open, destinations.length]);
+
   const results = useMemo(() => {
     if (!query.trim()) return [];
     const q = query.toLowerCase();
-    return DESTINATIONS.filter(
+    return destinations.filter(
       (d) =>
         d.name.en.toLowerCase().includes(q) ||
         d.name.ar.includes(query) ||
         d.region.en.toLowerCase().includes(q) ||
         d.region.ar.includes(query)
     ).slice(0, 8);
-  }, [query]);
+  }, [query, destinations]);
 
   const navigate = useCallback(
     (path: string) => {

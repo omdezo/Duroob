@@ -3,9 +3,10 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod/v4';
 import { generateItinerary } from '@/lib/planner/itineraryEngine';
 import { scorePlan } from '@/lib/planner/tripScorer';
-import { getDb } from '@/db';
+import { getDb, getActiveDestinations } from '@/db';
 import { plannerLimiter } from '@/lib/rateLimit';
 import { rateLimit } from '@/lib/withRateLimit';
+import { withDestinations } from '@/lib/planner/destinationsContextServer';
 
 const PlannerInputsSchema = z.object({
   durationDays: z.number().int().min(1).max(7),
@@ -54,8 +55,12 @@ export async function POST(request: NextRequest) {
     }
 
     const inputs = parsed.data;
-    const plan = generateItinerary(inputs as Parameters<typeof generateItinerary>[0]);
-    const scores = scorePlan(plan);
+    const destinations = await getActiveDestinations();
+    const { plan, scores } = await withDestinations(destinations, () => {
+      const p = generateItinerary(inputs as Parameters<typeof generateItinerary>[0]);
+      const s = scorePlan(p);
+      return { plan: p, scores: s };
+    });
 
     // Track for analytics in DB
     try {

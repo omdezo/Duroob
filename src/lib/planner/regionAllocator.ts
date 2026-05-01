@@ -7,7 +7,7 @@
 
 import type { Destination, Region } from '@/types/destination';
 import type { PlannerInputs, RegionAllocation } from '@/types/planner';
-import { DESTINATIONS } from '@/data/destinations';
+import { currentDestinations } from './destinationsContext';
 import { jaccardSimilarity, seasonFit } from './scoring';
 import { distanceKm } from './haversine';
 
@@ -52,7 +52,7 @@ export function allocateRegions(inputs: PlannerInputs): RegionAllocation[] {
 
   // Group destinations by region, filtered by preferredRegions if set
   const regionMap = new Map<Region, Destination[]>();
-  for (const d of DESTINATIONS) {
+  for (const d of currentDestinations()) {
     const r = d.region.en;
     // If user specified preferred regions, only consider those
     if (inputs.preferredRegions && inputs.preferredRegions.length > 0) {
