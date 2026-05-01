@@ -5,6 +5,11 @@ import { searchDestinations } from './tools/searchDestinations';
 import { getRecommendations } from './tools/getRecommendations';
 import { getTravelInfo } from './tools/getTravelInfo';
 import { getWeather } from './tools/getWeather';
+import { saveTrip } from './tools/saveTrip';
+import { findNearest } from './tools/findNearest';
+import { getUserInterests } from './tools/getUserInterests';
+import { getAlternatives } from './tools/getAlternatives';
+import { getDestinationDetails } from './tools/getDestinationDetails';
 
 type ToolHandler = (input: any, ctx: McpContext) => McpToolResult | Promise<McpToolResult>;
 
@@ -15,6 +20,11 @@ export const mcpTools: Record<string, ToolHandler> = {
   get_recommendations: getRecommendations,
   get_travel_info: getTravelInfo,
   get_weather: getWeather,
+  save_trip: saveTrip,
+  find_nearest: findNearest,
+  get_user_interests: getUserInterests,
+  get_alternatives: getAlternatives,
+  get_destination_details: getDestinationDetails,
 };
 
 export async function executeTool(toolName: string, input: any, ctx: McpContext): Promise<McpToolResult> {

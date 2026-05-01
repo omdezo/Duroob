@@ -92,6 +92,11 @@ You have these TOOLS you can call by outputting a JSON object:
 3. get_recommendations: {"tool":"get_recommendations","input":{"context":"trending_now"}}
 4. get_weather: {"tool":"get_weather","input":{"region":"muscat"}}   ← LIVE current temperature, conditions, alerts (rain/heat). USE THIS for any weather question.
 5. get_travel_info: {"tool":"get_travel_info","input":{"topic":"visa|safety|transport|food_guide|currency|emergency"}}
+6. save_trip: {"tool":"save_trip","input":{"title":"3-day Muscat"}}   ← Save the plan from the current conversation. Use when the user says "save", "احفظ", "save this trip".
+7. find_nearest: {"tool":"find_nearest","input":{"region":"muscat","category":"beach","limit":5}}   ← Closest destinations to a region centroid (or lat/lng). Use for "near me / what's close".
+8. get_user_interests: {"tool":"get_user_interests","input":{}}   ← Reads the signed-in user's saved destinations. Use when they ask about "my interests", "my saved", "based on what I like".
+9. get_alternatives: {"tool":"get_alternatives","input":{"destinationName":"Wadi Shab","cheaper":true,"lessCrowded":true}}   ← Suggest alternatives to a destination. Use when user asks for "something cheaper", "less crowded option", "أرخص بديل".
+10. get_destination_details: {"tool":"get_destination_details","input":{"destinationName":"Jebel Akhdar"}}   ← Deep-dive on a single destination (cost, duration, best months, crowd).
 
 Available regions: muscat, dakhiliya, sharqiya, dhofar, batinah, dhahira
 Available categories: mountain, beach, culture, desert, nature, food
@@ -296,6 +301,57 @@ function smartFallback(
         ? 'تقصد الطقس في أي منطقة؟ (مسقط، الداخلية، الشرقية، ظفار، الباطنة، الظاهرة)'
         : 'Weather for which region? (Muscat, Dakhiliya, Sharqiya, Dhofar, Batinah, Dhahira)',
     };
+  }
+
+  // 4d. Save current plan
+  const wantsSave =
+    /save (this|it|my trip|the plan)/i.test(lower) ||
+    msg.includes('احفظ') || msg.includes('سجل الرحلة') || msg.includes('خزّن');
+  if (wantsSave) {
+    return { toolCall: { tool: 'save_trip', input: {} }, text: '' };
+  }
+
+  // 4e. "Near me / what's close"
+  const wantsNearest =
+    /near me|nearby|closest|whats? close/i.test(lower) ||
+    msg.includes('قريب مني') || msg.includes('أقرب') || msg.includes('قربي');
+  if (wantsNearest) {
+    const region = regions[0] || regionFromHistory(history) || 'muscat';
+    const cat = categories[0];
+    const input: Record<string, any> = { region };
+    if (cat) input.category = cat;
+    return { toolCall: { tool: 'find_nearest', input }, text: '' };
+  }
+
+  // 4f. User asking about their saved interests
+  const wantsInterests =
+    /my (saved|interests|favorites|favourites)|based on (what|my)/i.test(lower) ||
+    msg.includes('اهتماماتي') || msg.includes('محفوظاتي') || msg.includes('من المحفوظة');
+  if (wantsInterests) {
+    return { toolCall: { tool: 'get_user_interests', input: {} }, text: '' };
+  }
+
+  // 4g. Alternative request — "something cheaper / less crowded / instead of X"
+  const wantsAlternative =
+    /(cheaper|less crowded|alternative|instead of)/i.test(lower) ||
+    msg.includes('أرخص') || msg.includes('بدل') || msg.includes('بديل') || msg.includes('أهدى');
+  if (wantsAlternative) {
+    // Try to extract a destination by name reference in current msg or last assistant
+    const lastAssistantContent =
+      [...history].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+    const candidate = destinations.find(
+      (d) =>
+        msg.includes(d.name.ar) ||
+        msg.toLowerCase().includes(d.name.en.toLowerCase()) ||
+        lastAssistantContent.includes(d.name.ar) ||
+        lastAssistantContent.toLowerCase().includes(d.name.en.toLowerCase()),
+    );
+    if (candidate) {
+      const input: Record<string, any> = { destinationId: candidate.id };
+      if (lower.includes('cheap') || msg.includes('أرخص')) input.cheaper = true;
+      if (lower.includes('crowd') || msg.includes('أهدى')) input.lessCrowded = true;
+      return { toolCall: { tool: 'get_alternatives', input }, text: '' };
+    }
   }
 
   // 5. Trip request — explicit trip words OR duration + region/category
@@ -756,10 +812,18 @@ function isGreeting(lower: string, msg: string): boolean {
 
 // ─── Main Agent Entry Point ───────────────────────────────────────────────
 
+export interface RunAgentOptions {
+  userId?: string;
+  userEmail?: string;
+  currentPlan?: import('@/types/itinerary').ItineraryPlan;
+  currentScores?: TripScores;
+}
+
 export async function runAgent(
   message: string,
   history: AgentMessage[],
   locale: string,
+  options: RunAgentOptions = {},
 ): Promise<AgentResponse> {
   const isAr = locale === 'ar';
 
@@ -770,6 +834,10 @@ export async function runAgent(
   const ctx: McpContext = {
     locale: locale as 'en' | 'ar',
     destinations,
+    userId: options.userId,
+    userEmail: options.userEmail,
+    currentPlan: options.currentPlan,
+    currentScores: options.currentScores,
   };
 
   return withDestinations(destinations, async () => {

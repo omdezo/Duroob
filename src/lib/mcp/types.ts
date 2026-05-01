@@ -4,6 +4,7 @@ import type { Destination } from '@/types/destination';
 
 export interface McpContext {
   userId?: string;
+  userEmail?: string;
   locale: 'en' | 'ar';
   currentPlan?: ItineraryPlan;
   currentScores?: TripScores;
@@ -22,5 +23,6 @@ export interface McpToolResult {
   info?: { content: string };
   recommendation?: { summary: string; data: any };
   changes?: Array<{ day: number; removed: string; added: string }>;
+  saved?: { tripId: string };
   error?: string;
 }

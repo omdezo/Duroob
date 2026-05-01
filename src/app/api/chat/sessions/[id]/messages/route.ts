@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { runAgent, type AgentMessage } from '@/lib/mcp/agent';
 import { chatLimiter, checkRateLimit } from '@/lib/rateLimit';
 import { getDb } from '@/db';
+import { auth } from '@/lib/auth';
 
 export async function POST(
   req: NextRequest,
@@ -18,17 +19,22 @@ export async function POST(
   }
 
   try {
-    const { content, locale = 'en', history = [] } = await req.json();
+    const { content, locale = 'en', history = [], currentPlan, currentScores } = await req.json();
 
     if (!content || typeof content !== 'string') {
       return NextResponse.json({ error: 'Message content is required' }, { status: 400 });
     }
+
+    const session = await auth();
+    const userId = (session?.user as any)?.id as string | undefined;
+    const userEmail = session?.user?.email ?? undefined;
 
     // Run the agent
     const response = await runAgent(
       content,
       history as AgentMessage[],
       locale,
+      { userId, userEmail, currentPlan, currentScores },
     );
 
     // Persist chat messages + analytics in the background — don't block the response
@@ -36,7 +42,7 @@ export async function POST(
     const assistantMsg = response.text.slice(0, 200);
     const hasPlan = !!response.plan;
     void persistChatTurn({
-      sessionId, content, response, userMsg, assistantMsg, hasPlan,
+      sessionId, content, response, userMsg, assistantMsg, hasPlan, userId, userEmail,
     });
 
     // Stream response via SSE
@@ -81,7 +87,7 @@ export async function POST(
 }
 
 async function persistChatTurn({
-  sessionId, content, response, userMsg, assistantMsg, hasPlan,
+  sessionId, content, response, userMsg, assistantMsg, hasPlan, userId, userEmail,
 }: {
   sessionId: string;
   content: string;
@@ -89,22 +95,28 @@ async function persistChatTurn({
   userMsg: string;
   assistantMsg: string;
   hasPlan: boolean;
+  userId?: string;
+  userEmail?: string;
 }) {
   try {
     const sql = getDb();
 
     await sql`
-      INSERT INTO chat_sessions (id, message_count, has_plan, last_message, created_at, updated_at)
-      VALUES (${sessionId}, 1, false, ${userMsg}, NOW(), NOW())
+      INSERT INTO chat_sessions (id, user_id, user_email, message_count, has_plan, last_message, created_at, updated_at)
+      VALUES (${sessionId}, ${userId ?? null}, ${userEmail ?? null}, 1, false, ${userMsg}, NOW(), NOW())
       ON CONFLICT (id) DO UPDATE SET
+        user_id = COALESCE(chat_sessions.user_id, EXCLUDED.user_id),
+        user_email = COALESCE(chat_sessions.user_email, EXCLUDED.user_email),
         message_count = chat_sessions.message_count + 1,
         last_message = ${userMsg},
         updated_at = NOW()
     `;
     await sql`
-      INSERT INTO chat_sessions (id, message_count, has_plan, last_message, created_at, updated_at)
-      VALUES (${sessionId}, 1, ${hasPlan}, ${assistantMsg}, NOW(), NOW())
+      INSERT INTO chat_sessions (id, user_id, user_email, message_count, has_plan, last_message, created_at, updated_at)
+      VALUES (${sessionId}, ${userId ?? null}, ${userEmail ?? null}, 1, ${hasPlan}, ${assistantMsg}, NOW(), NOW())
       ON CONFLICT (id) DO UPDATE SET
+        user_id = COALESCE(chat_sessions.user_id, EXCLUDED.user_id),
+        user_email = COALESCE(chat_sessions.user_email, EXCLUDED.user_email),
         message_count = chat_sessions.message_count + 1,
         has_plan = chat_sessions.has_plan OR ${hasPlan},
         last_message = ${assistantMsg},
