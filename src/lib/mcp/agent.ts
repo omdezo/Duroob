@@ -347,6 +347,80 @@ function smartFallback(
     };
   }
 
+  // 8b. Pending follow-up — last assistant asked for region/duration/budget,
+  //     and the current short reply provides exactly that. Resolve to the right tool.
+  const pending = detectPending(history);
+  if (pending.tool && pending.slot) {
+    if (pending.slot === 'region') {
+      const region = regions[0];
+      if (region) {
+        if (pending.tool === 'get_weather') {
+          return { toolCall: { tool: 'get_weather', input: { region } }, text: '' };
+        }
+        if (pending.tool === 'search_destinations') {
+          return { toolCall: { tool: 'search_destinations', input: { region } }, text: '' };
+        }
+        if (pending.tool === 'plan_trip') {
+          const ctxTrip = carriedTripContext(history);
+          const input: Record<string, any> = {
+            durationDays: duration ?? ctxTrip.duration ?? 3,
+            preferredRegions: [region],
+          };
+          if (categories.length || ctxTrip.categories) {
+            input.preferredCategories = categories.length ? categories : ctxTrip.categories;
+          }
+          if (budget) input.customBudgetOmr = budget;
+          return { toolCall: { tool: 'plan_trip', input }, text: '' };
+        }
+      }
+    }
+    if (pending.slot === 'duration') {
+      const bare = extractBareNumber(msg);
+      const days = duration ?? bare;
+      if (days && days >= 1 && days <= 7) {
+        const ctxTrip = carriedTripContext(history);
+        const input: Record<string, any> = { durationDays: days };
+        if (regions.length || ctxTrip.regions) {
+          input.preferredRegions = regions.length ? regions : ctxTrip.regions;
+        }
+        if (categories.length || ctxTrip.categories) {
+          input.preferredCategories = categories.length ? categories : ctxTrip.categories;
+        }
+        if (budget) input.customBudgetOmr = budget;
+        return { toolCall: { tool: 'plan_trip', input }, text: '' };
+      }
+    }
+    if (pending.slot === 'budget') {
+      const bare = extractBareNumber(msg);
+      const omr = budget ?? bare;
+      if (omr && omr > 0) {
+        const ctxTrip = carriedTripContext(history);
+        const input: Record<string, any> = {
+          durationDays: duration ?? ctxTrip.duration ?? 3,
+          customBudgetOmr: omr,
+        };
+        if (regions.length || ctxTrip.regions) {
+          input.preferredRegions = regions.length ? regions : ctxTrip.regions;
+        }
+        if (categories.length || ctxTrip.categories) {
+          input.preferredCategories = categories.length ? categories : ctxTrip.categories;
+        }
+        return { toolCall: { tool: 'plan_trip', input }, text: '' };
+      }
+    }
+    if (pending.slot === 'category' && categories.length > 0) {
+      const ctxTrip = carriedTripContext(history);
+      const input: Record<string, any> = {
+        durationDays: duration ?? ctxTrip.duration ?? 3,
+        preferredCategories: categories,
+      };
+      if (regions.length || ctxTrip.regions) {
+        input.preferredRegions = regions.length ? regions : ctxTrip.regions;
+      }
+      return { toolCall: { tool: 'plan_trip', input }, text: '' };
+    }
+  }
+
   // 9. ANYTHING else — be helpful, don't repeat the same welcome
   // Try to be smart about what they might mean
   if (regions.length > 0) {
@@ -496,6 +570,84 @@ function detectInfoTopic(lower: string, msg: string): string | null {
   return null;
 }
 
+// What was the previous assistant message waiting for?
+// This lets us turn one-word user replies ("مسقط", "3", "200") into the right tool call.
+type PendingTool = 'plan_trip' | 'search_destinations' | 'get_weather' | 'get_recommendations' | null;
+type PendingSlot = 'region' | 'duration' | 'budget' | 'category' | null;
+
+function detectPending(history: AgentMessage[]): { tool: PendingTool; slot: PendingSlot } {
+  const last = [...history].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+  if (!last) return { tool: null, slot: null };
+
+  const asksRegion =
+    /which region|what region/i.test(last) ||
+    last.includes('أي منطقة') || last.includes('اي منطقة');
+  const asksDuration =
+    /how many days|how long/i.test(last) || last.includes('كم يوم') || last.includes('كم يومًا');
+  // "ميزاني" matches "ميزانية", "ميزانيتك", "ميزانيتي" — Arabic suffixes vary.
+  const asksBudget = /budget/i.test(last) || last.includes('ميزاني') || last.includes('كم عندك');
+  const asksCategory =
+    /what kind|what type|category|interests/i.test(last) ||
+    last.includes('ايش يعجبك') || last.includes('ويش تحب') || last.includes('نوع');
+
+  // Topic context — walk recent turns (both user + assistant) up to last 4 to capture earlier intent.
+  const recent = history.slice(-4).map((m) => m.content).join(' \n ') + ' \n ' + last;
+  const isWeatherTopic = /weather|temperature|climate/i.test(recent) || recent.includes('طقس') || recent.includes('مناخ');
+  const isSearchTopic =
+    /destinations?|places|attractions|things to do|what.*see/i.test(recent) ||
+    recent.includes('أماكن') || recent.includes('الأماكن') || recent.includes('وجهات') ||
+    recent.includes('السياحية') || recent.includes('معالم');
+  const isRecTopic = /recommend|suggest|best/i.test(recent) || recent.includes('أنصح') || recent.includes('أقترح') || recent.includes('تنصح') || recent.includes('أفضل');
+
+  if (asksRegion) {
+    if (isWeatherTopic) return { tool: 'get_weather', slot: 'region' };
+    if (isSearchTopic) return { tool: 'search_destinations', slot: 'region' };
+    if (isRecTopic) return { tool: 'get_recommendations', slot: 'region' };
+    return { tool: 'plan_trip', slot: 'region' };
+  }
+  if (asksDuration) return { tool: 'plan_trip', slot: 'duration' };
+  if (asksBudget) return { tool: 'plan_trip', slot: 'budget' };
+  if (asksCategory) return { tool: 'plan_trip', slot: 'category' };
+
+  return { tool: null, slot: null };
+}
+
+// "3" alone, or "ثلاثة" alone — only valid as a duration if context demanded it.
+function extractBareNumber(msg: string): number | null {
+  const trimmed = msg.trim();
+  const m = trimmed.match(/^(\d{1,3})$/);
+  if (m) return parseInt(m[1], 10);
+  const arabicWords: Record<string, number> = {
+    واحد: 1, اثنين: 2, اثنان: 2, يومين: 2, ثلاثة: 3, ثلاث: 3, اربعة: 4, أربعة: 4, اربع: 4, أربع: 4,
+    خمسة: 5, خمس: 5, ستة: 6, ست: 6, سبعة: 7, سبع: 7,
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  };
+  if (arabicWords[trimmed.toLowerCase()] !== undefined) return arabicWords[trimmed.toLowerCase()];
+  return null;
+}
+
+function carriedTripContext(history: AgentMessage[]): { duration?: number; regions?: Region[]; categories?: Category[] } {
+  // Walk recent user messages for trip parameters previously stated.
+  const out: { duration?: number; regions?: Region[]; categories?: Category[] } = {};
+  for (let i = history.length - 1; i >= Math.max(0, history.length - 8); i--) {
+    const m = history[i];
+    if (m.role !== 'user') continue;
+    if (out.duration == null) {
+      const d = extractDuration(m.content);
+      if (d) out.duration = d;
+    }
+    if (!out.regions) {
+      const r = extractRegions(m.content);
+      if (r.length) out.regions = r;
+    }
+    if (!out.categories) {
+      const c = extractCategories(m.content);
+      if (c.length) out.categories = c;
+    }
+  }
+  return out;
+}
+
 function isWeatherQuery(lower: string, msg: string): boolean {
   return ['weather', 'climate', 'temperature', 'طقس', 'الطقس', 'مناخ', 'المناخ', 'حرارة', 'حر', 'مطر']
     .some(w => lower.includes(w) || msg.includes(w));
@@ -548,7 +700,37 @@ function inferToolFromIntent(
       regionFromHistory(history) ||
       (text.includes('مسقط') || t.includes('muscat') ? 'muscat' as Region : null);
     if (region) return { tool: 'get_weather', input: { region } };
-    // Otherwise, no region — let the prose stand (it might already be asking)
+  }
+
+  // Trip-plan intent ("I'll plan your trip", "سأخطط لك رحلة")
+  const planAnnounce =
+    t.includes('plan') || t.includes('itinerary') || t.includes('build you') ||
+    text.includes('أخطط') || text.includes('خطة') || text.includes('برنامج');
+  if (planAnnounce) {
+    const ctxTrip = carriedTripContext(history);
+    const regionsNow = extractRegions(message);
+    const dur = extractDuration(message) ?? ctxTrip.duration;
+    const regs = regionsNow.length ? regionsNow : ctxTrip.regions;
+    const cats = extractCategories(message);
+    if (dur || regs?.length) {
+      const input: Record<string, any> = { durationDays: dur ?? 3 };
+      if (regs?.length) input.preferredRegions = regs;
+      if (cats.length || ctxTrip.categories?.length) input.preferredCategories = cats.length ? cats : ctxTrip.categories;
+      return { tool: 'plan_trip', input };
+    }
+  }
+
+  // Search/destinations intent ("I'll find places…", "let me show you destinations")
+  const searchAnnounce =
+    t.includes('show you destinations') || t.includes("i'll find") || t.includes('let me show') ||
+    text.includes('أعرض لك') || text.includes('سأعرض') || text.includes('سأبحث عن أماكن');
+  if (searchAnnounce) {
+    const region = extractRegions(message)[0] || regionFromHistory(history);
+    const category = extractCategories(message)[0];
+    const input: Record<string, any> = {};
+    if (region) input.region = region;
+    if (category) input.category = category;
+    if (region || category) return { tool: 'search_destinations', input };
   }
 
   // Recommendation intent
