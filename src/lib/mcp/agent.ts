@@ -89,26 +89,41 @@ You have these TOOLS you can call by outputting a JSON object:
 1. plan_trip: {"tool":"plan_trip","input":{"durationDays":N,"preferredRegions":["muscat"],"preferredCategories":["culture"],"customBudgetOmr":200}}
 2. search_destinations: {"tool":"search_destinations","input":{"query":"text","region":"muscat","category":"beach"}}
 3. get_recommendations: {"tool":"get_recommendations","input":{"context":"trending_now"}}
-4. get_travel_info: {"tool":"get_travel_info","input":{"topic":"weather|visa|safety|transport|food_guide|currency|emergency"}}
+4. get_weather: {"tool":"get_weather","input":{"region":"muscat"}}   ← LIVE current temperature, conditions, alerts (rain/heat). USE THIS for any weather question.
+5. get_travel_info: {"tool":"get_travel_info","input":{"topic":"visa|safety|transport|food_guide|currency|emergency"}}
 
 Available regions: muscat, dakhiliya, sharqiya, dhofar, batinah, dhahira
 Available categories: mountain, beach, culture, desert, nature, food
 Unsupported regions (not in our data yet): Musandam (مسندم), Al Buraimi, Al Wusta, Masirah
 
-RULES:
+CRITICAL RULES:
+- NEVER announce intent without calling the tool. Phrases like "I'll search for...", "let me check...", "سأبحث لك", "سأجلب لك", "تمام سأبحث" are FORBIDDEN unless you ALSO emit the tool JSON in the same response.
+- If you say you will fetch data, you MUST emit the JSON tool call in the same reply. No "I'll do it" without doing it.
+- For weather questions ALWAYS use get_weather (not get_travel_info). Pick the region from the user's message OR from earlier turns. If still unclear, ask once concisely.
+- Read the WHOLE conversation. If the user said "Muscat" 2 turns ago and now says "yalla / go / ok", apply that region.
 - ALWAYS respond in the SAME LANGUAGE the user writes in. If Arabic → Arabic. If English → English.
 - If the user wants a trip/plan, call plan_trip. Default to 3 days if not specified.
 - If the user asks "what places" or "what's in [region]", call search_destinations.
-- If the user asks about weather/visa/safety, call get_travel_info.
+- If the user asks about visa/safety/transport/currency/food/emergency, call get_travel_info.
 - If the user says something like "what do you recommend", call get_recommendations.
 - If the user mentions a place we don't have (like Musandam), explain it's not available yet and list our 6 regions.
-- If the user confirms something (نعم, yes, خليها, OK) after you suggested expanding regions, call plan_trip WITHOUT preferredRegions to get a multi-region trip.
+- If the user confirms (نعم, yes, OK, يلا, خليها) after you mentioned weather/region/etc., EXECUTE the tool call now — do not re-confirm.
 - For greetings, introduce yourself warmly. If user says their name, greet them by name.
-- Keep responses SHORT (2-3 sentences). The plan data is shown as a card — don't describe every stop.
-- Be conversational and warm, like a local friend giving advice. Use Omani cultural references.
-- When outputting a tool call, put the JSON on its own line, then your text response after it.
-- If NOT calling any tool, just respond conversationally.
-- NEVER refuse to help. If you don't understand, ask a clarifying question.`;
+- Keep responses SHORT (2-3 sentences). The plan/info card shows the data — don't repeat it in prose.
+- When emitting a tool call, put the JSON on its own line FIRST, then your short text after it.
+- NEVER refuse to help. If unclear, ask one short clarifying question.
+
+EXAMPLES:
+User: "كيف الطقس في مسقط؟"
+You: {"tool":"get_weather","input":{"region":"muscat"}}
+هذي حالة الطقس الآن.
+
+User (turn 1): "كيف الطقس"
+You: {"tool":"get_weather","input":{"region":"muscat"}}   ← default to Muscat or ask once
+
+User (turn 2 after asking for region, user says "مسقط"):
+You: {"tool":"get_weather","input":{"region":"muscat"}}
+تمام، هذا الطقس الحالي.`;
 
 async function tryGemini(message: string, history: AgentMessage[], _locale: string): Promise<{ toolCall?: McpToolCall; text: string } | null> {
   if (!GEMINI_KEY) return null;
@@ -227,7 +242,7 @@ function smartFallback(
   }
 
   // 3. Confirmation / "yes expand" — when previous message asked about expanding
-  const isConfirm = containsAny(lower, ['نعم', 'اي', 'ايه', 'أيوه', 'ايوه', 'خليها', 'أضف', 'اضف', 'yes', 'yeah', 'sure', 'ok', 'yep', 'expand', 'add']);
+  const isConfirm = containsAny(lower, ['نعم', 'اي', 'ايه', 'أيوه', 'ايوه', 'خليها', 'أضف', 'اضف', 'يلا', 'يالله', 'هيا', 'تمام', 'طيب', 'اوكي', 'أوكي', 'yes', 'yeah', 'sure', 'ok', 'okay', 'yep', 'go', 'expand', 'add']);
   const prevAskedExpand = history.some(m => m.role === 'assistant' && (m.content.includes('أضيف مناطق') || m.content.includes('add nearby')));
   if (isConfirm && prevAskedExpand && duration) {
     // User confirmed expanding — remove region restriction, keep duration
@@ -239,10 +254,46 @@ function smartFallback(
     return { toolCall: { tool: 'plan_trip', input: { durationDays: duration } }, text: '' };
   }
 
-  // 4. Weather / travel info — check BEFORE trip so "how's the weather" doesn't become a trip
+  // 4. Weather — live data with region context from history
+  const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant');
+  const lastAssistantWeatherCtx =
+    !!lastAssistant &&
+    (/weather|temperature|climate/i.test(lastAssistant.content) ||
+      lastAssistant.content.includes('طقس') ||
+      lastAssistant.content.includes('مناخ') ||
+      lastAssistant.content.includes('حرارة'));
+  const wantsWeather =
+    isWeatherQuery(lower, msg) ||
+    (isConfirm && historyMentionsWeather(history)) ||
+    // Region-only reply ("مسقط") after we asked which region for weather
+    (regions.length > 0 && lastAssistantWeatherCtx && !duration && !hasAnyTripWord(lower, msg) && !hasWantWord(lower, msg));
+  if (wantsWeather) {
+    const region = regions[0] || regionFromHistory(history);
+    if (region) {
+      return { toolCall: { tool: 'get_weather', input: { region } }, text: '' };
+    }
+    // No region known — ask once, briefly
+    return {
+      text: isAr
+        ? 'تقصد الطقس في أي منطقة؟ (مسقط، الداخلية، الشرقية، ظفار، الباطنة، الظاهرة)'
+        : 'Weather for which region? (Muscat, Dakhiliya, Sharqiya, Dhofar, Batinah, Dhahira)',
+    };
+  }
+
+  // 4b. Other travel info (visa/safety/transport/etc.) — generic static info is fine
   const infoTopic = detectInfoTopic(lower, msg);
-  if (infoTopic) {
+  if (infoTopic && infoTopic !== 'weather') {
     return { toolCall: { tool: 'get_travel_info', input: { topic: infoTopic } }, text: '' };
+  }
+  // 4c. If it's a "weather" topic but we got here without a region, also fall through to ask
+  if (infoTopic === 'weather') {
+    const region = regions[0] || regionFromHistory(history);
+    if (region) return { toolCall: { tool: 'get_weather', input: { region } }, text: '' };
+    return {
+      text: isAr
+        ? 'تقصد الطقس في أي منطقة؟ (مسقط، الداخلية، الشرقية، ظفار، الباطنة، الظاهرة)'
+        : 'Weather for which region? (Muscat, Dakhiliya, Sharqiya, Dhofar, Batinah, Dhahira)',
+    };
   }
 
   // 5. Trip request — explicit trip words OR duration + region/category
@@ -445,6 +496,69 @@ function detectInfoTopic(lower: string, msg: string): string | null {
   return null;
 }
 
+function isWeatherQuery(lower: string, msg: string): boolean {
+  return ['weather', 'climate', 'temperature', 'طقس', 'الطقس', 'مناخ', 'المناخ', 'حرارة', 'حر', 'مطر']
+    .some(w => lower.includes(w) || msg.includes(w));
+}
+
+function historyMentionsWeather(history: AgentMessage[]): boolean {
+  return history.slice(-6).some(m => {
+    const t = m.content.toLowerCase();
+    return t.includes('weather') || m.content.includes('طقس') || m.content.includes('الطقس')
+      || t.includes('temperature') || m.content.includes('مناخ');
+  });
+}
+
+function regionFromHistory(history: AgentMessage[]): Region | null {
+  // Walk recent messages newest-first; first region mention wins.
+  for (let i = history.length - 1; i >= Math.max(0, history.length - 8); i--) {
+    const m = history[i];
+    const found = extractRegions(m.content);
+    if (found.length > 0) return found[0];
+  }
+  return null;
+}
+
+// Post-process safety net: when Gemini returns prose like "I'll search for the weather"
+// without emitting a tool call, infer the intended tool and call it ourselves.
+function inferToolFromIntent(
+  text: string,
+  message: string,
+  history: AgentMessage[],
+  _locale: string,
+): McpToolCall | null {
+  if (!text) return null;
+  const t = text.toLowerCase();
+
+  // Phrases that announce intent but didn't emit a tool call
+  const announcesAction =
+    t.includes("i'll") || t.includes('i will') || t.includes('let me') ||
+    t.includes('searching') || t.includes('fetching') || t.includes('looking up') ||
+    text.includes('سأبحث') || text.includes('سأجلب') || text.includes('سأتحقق') ||
+    text.includes('دعني') || text.includes('خلني') || text.includes('بأبحث') ||
+    text.includes('سأقدّم') || text.includes('سوف أ') || text.includes('سأعطيك') ||
+    text.includes('بأشيك');
+
+  if (!announcesAction) return null;
+
+  // Weather intent
+  if (isWeatherQuery(t, text) || historyMentionsWeather(history)) {
+    const region =
+      extractRegions(message)[0] ||
+      regionFromHistory(history) ||
+      (text.includes('مسقط') || t.includes('muscat') ? 'muscat' as Region : null);
+    if (region) return { tool: 'get_weather', input: { region } };
+    // Otherwise, no region — let the prose stand (it might already be asking)
+  }
+
+  // Recommendation intent
+  if (t.includes('recommend') || t.includes('suggest') || text.includes('أنصحك') || text.includes('أقترح')) {
+    return { tool: 'get_recommendations', input: { context: 'trending_now' } };
+  }
+
+  return null;
+}
+
 function isGreeting(lower: string, msg: string): boolean {
   // Only pure greetings — NOT if message has info words
   const infoWords = ['طقس', 'الطقس', 'تأشيرة', 'weather', 'visa', 'أماكن', 'الأماكن', 'places'];
@@ -479,9 +593,19 @@ export async function runAgent(
     aiResult = smartFallback(message, history, locale);
   }
 
+  // Step 2b: Safety net — if Gemini returned text-only and that text announces intent
+  // (e.g. "I'll search for the weather"), force-call the implied tool.
+  // Without this, the agent stalls in multi-turn flows.
+  if (!aiResult.toolCall) {
+    const inferred = inferToolFromIntent(aiResult.text, message, history, locale);
+    if (inferred) {
+      aiResult = { toolCall: inferred, text: '' };
+    }
+  }
+
   // Step 3: Execute tool call if any
   if (aiResult.toolCall) {
-    const result = executeTool(aiResult.toolCall.tool, aiResult.toolCall.input, ctx);
+    const result = await executeTool(aiResult.toolCall.tool, aiResult.toolCall.input, ctx);
 
     if (result.plan && result.scores) {
       let plan = result.plan;
@@ -494,7 +618,7 @@ export async function runAgent(
       if (actualDays < requestedDays && aiResult.toolCall.input.preferredRegions?.length) {
         const expandedInput = { ...aiResult.toolCall.input };
         delete expandedInput.preferredRegions; // Remove region restriction
-        const expanded = executeTool('plan_trip', expandedInput, ctx);
+        const expanded = await executeTool('plan_trip', expandedInput, ctx);
         if (expanded.plan && expanded.plan.days.length > actualDays) {
           plan = expanded.plan;
           scores = expanded.scores!;
@@ -533,7 +657,11 @@ export async function runAgent(
     }
 
     if (result.info) {
-      return { text: aiResult.text || result.info.content, type: 'info' };
+      // Tool data is authoritative. Drop announce-intent prose like "I'll search...".
+      const intentNoise = /^(\s*(i['']ll|i will|let me|searching|fetching|looking up|سأبحث|سأجلب|سأتحقق|دعني|خلني|بأبحث|بأشيك|سأقدّم|سأعطيك)).*/i;
+      const prose = aiResult.text && !intentNoise.test(aiResult.text) ? aiResult.text.trim() : '';
+      const text = prose ? `${prose}\n\n${result.info.content}` : result.info.content;
+      return { text, type: 'info' };
     }
 
     if (result.destinations) {
